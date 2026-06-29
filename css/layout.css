@@ -1,0 +1,69 @@
+/* ============================================================
+   APP LAYOUT — shell, title bar, main wrapper, bottom bar
+   ============================================================ */
+#app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    /* fix mobile: dynamic viewport height */
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+#app-shell.ready {
+    opacity: 1;
+}
+
+#app-title {
+    height: 18px;
+    background-color: var(--bg-title);
+    color: #888888;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    letter-spacing: 0.5px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+/* FIX MOBILE: min-height:0 evita overflow en flex child */
+#main-wrapper {
+    display: block;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* FIX MOBILE: safe-area-inset-bottom para notch / Dynamic Island */
+#bottom-bar {
+    height: 24px;
+    background-color: var(--bg-bottombar);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    font-size: 12px;
+    color: var(--text-main);
+    justify-content: space-between;
+    z-index: 300;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.status-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.status-item svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+    color: #ffffff;
+}

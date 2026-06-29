@@ -1,0 +1,137 @@
+/* ============================================================
+   LOADER — visible desde el primer byte, sin dependencia de JS
+   ============================================================ */
+#tecal-loader {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #111111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    pointer-events: all;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+#tecal-loader.fade-out {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loader-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+
+.loader-brand-title {
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: 6px;
+    color: rgba(255, 255, 255, 0.85);
+    text-transform: uppercase;
+}
+
+.loader-brand-sub {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+}
+
+.loader-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 260px;
+}
+
+.loader-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.25);
+    transition: color 0.3s ease;
+}
+
+.loader-step.active {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.loader-step.done {
+    color: #007acc;
+}
+
+/* Step icon: circle with state */
+.step-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.3s ease;
+}
+
+.loader-step.active .step-icon::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse-dot 0.8s ease-in-out infinite alternate;
+}
+
+.loader-step.done .step-icon::after {
+    content: '✓';
+    font-size: 10px;
+    color: #007acc;
+    animation: none;
+}
+
+@keyframes pulse-dot {
+    from {
+        transform: scale(0.7);
+        opacity: 0.5;
+    }
+
+    to {
+        transform: scale(1.0);
+        opacity: 1.0;
+    }
+}
+
+/* Progress bar */
+.loader-bar-track {
+    width: 260px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.loader-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: #007acc;
+    border-radius: 2px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.loader-status {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 1px;
+    min-height: 16px;
+    text-align: center;
+}

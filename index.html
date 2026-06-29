@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Visualización 3D - Teatro Tecal</title>
+    <meta name="description" content="Tecal — Simulación de teatros e iluminación escénica. IDE web tipo WYSIWYG CAD para visualización 3D de espacios teatrales.">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- CSS Modules -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/reset.css">
+    <link rel="stylesheet" href="css/loader.css">
+    <link rel="stylesheet" href="css/layout.css">
+    <link rel="stylesheet" href="css/topbar.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/properties.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/context-menu.css">
+    <link rel="stylesheet" href="css/canvas.css">
+    <link rel="stylesheet" href="css/watermark.css">
+
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+
+    <!-- ============================================================
+         LOADER — renderizado por CSS desde el primer byte
+    ============================================================ -->
+    <div id="tecal-loader">
+        <div class="loader-brand">
+            <div class="loader-brand-title">Teatro Tecal</div>
+            <div class="loader-brand-sub">Plano Estructural 3D</div>
+        </div>
+
+        <div class="loader-steps" id="loader-steps">
+            <!-- Steps se insertan por JS, pero el contenedor existe desde HTML -->
+        </div>
+
+        <div class="loader-bar-track">
+            <div class="loader-bar-fill" id="loader-bar"></div>
+        </div>
+
+        <div class="loader-status" id="loader-status">Inicializando…</div>
+    </div>
+
+    <!-- ============================================================
+         APP SHELL — oculto hasta que el loader termina
+    ============================================================ -->
+    <div id="app-shell">
+        <div id="app-title">TEATRO TECAL 3D — PLANO ESTRUCTURAL</div>
+
+        <div id="top-bar">
+
+            <!-- GRUPO 1: Menú + toggle 2D/3D -->
+            <div class="tb-group">
+                <button id="btn-menu" class="icon-btn" title="Explorador"><i data-lucide="menu"></i></button>
+                <div class="tb-sep"></div>
+                <button id="btn-toggle-view" class="icon-btn active" title="Alternar 2D/3D"><i
+                        data-lucide="box"></i></button>
+            </div>
+
+            <div class="tb-sep"></div>
+
+            <!-- GRUPO 2: Visibilidad de escena -->
+            <div class="tb-group">
+                <button id="btn-dimensions" class="icon-btn" title="Mostrar/Ocultar Acotaciones"><i
+                        data-lucide="ruler"></i></button>
+                <button id="btn-grid" class="icon-btn" title="Ajustes de Grid"><i data-lucide="grid-3x3"></i></button>
+                <button id="btn-wireframe" class="icon-btn" title="Wire View"><i data-lucide="boxes"></i></button>
+                <button id="btn-gizmo" class="icon-btn active" title="Mostrar/Ocultar Gizmo"><i
+                        data-lucide="compass"></i></button>
+            </div>
+
+            <div class="tb-sep"></div>
+
+            <!-- GRUPO 3: Herramientas -->
+            <div class="tb-group">
+                <button id="btn-select" class="icon-btn" title="Seleccionar (Q)"><i
+                        data-lucide="mouse-pointer-2"></i></button>
+                <button id="btn-move" class="icon-btn" title="Mover (W)"><i data-lucide="move"></i></button>
+                <div id="move-planes">
+                    <button class="icon-btn sm btn-plane active" data-plane="xz"
+                        title="Mover en plano horizontal XZ">XZ</button>
+                    <button class="icon-btn sm btn-plane" data-plane="xy" title="Mover en plano frontal XY">XY</button>
+                    <button class="icon-btn sm btn-plane" data-plane="yz" title="Mover en plano lateral YZ">YZ</button>
+                    <div class="tb-sep" style="margin: 0 4px; display: inline-block; vertical-align: middle;"></div>
+                    <button id="btn-clamp" class="icon-btn sm btn-plane active" title="Restringir al área del teatro"><i data-lucide="shrink"></i></button>
+                </div>
+                <button id="btn-orbit" class="icon-btn active" title="Órbita / Navegar (E)"><i
+                        data-lucide="rotate-3d"></i></button>
+                <button id="btn-pan" class="icon-btn" title="Encuadre / Pan (H)"><i data-lucide="hand"></i></button>
+            </div>
+
+            <!-- GRUPO 4: Historial + Brillo -->
+            <div class="tb-group tb-group-right">
+                <button id="btn-undo" class="icon-btn disabled" title="Deshacer (Ctrl+Z)"><i
+                        data-lucide="undo"></i></button>
+                <button id="btn-redo" class="icon-btn disabled" title="Rehacer (Ctrl+Y)"><i
+                        data-lucide="redo"></i></button>
+                <div class="tb-sep"></div>
+                <button id="btn-brightness" class="icon-btn" title="Luz Ambiente"><i data-lucide="sun"></i></button>
+            </div>
+
+        </div>
+
+        <div id="toolbar-2d">
+            <button class="icon-btn sm btn-cam-mode" data-mode="top" title="Superior"><i
+                    data-lucide="arrow-down-to-line"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="front" title="Frontal"><i
+                    data-lucide="align-horizontal-justify-center"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="bottom" title="Inferior"><i
+                    data-lucide="arrow-up-to-line"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="left" title="Lateral Izquierda"><i
+                    data-lucide="arrow-right-to-line"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="right" title="Lateral Derecha"><i
+                    data-lucide="arrow-left-to-line"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="ortho" title="Ortogonal"><i
+                    data-lucide="box-select"></i></button>
+            <div class="separator"></div>
+            <button class="icon-btn sm btn-cam-mode" data-mode="split" title="Vista Dividida"><i
+                    data-lucide="layout-grid"></i></button>
+            <div class="separator"></div>
+            <button class="icon-btn sm btn-fit-view" id="btn-fit-view" title="Encuadrar Vista (Fit)"><i
+                    data-lucide="maximize"></i></button>
+        </div>
+
+        <div id="main-wrapper">
+            <div id="canvas-wrapper" class="tool-orbit">
+                <div class="split-divider v"></div>
+                <div class="split-divider h"></div>
+                <div class="split-badge tl"><i data-lucide="arrow-down-to-line"></i> Superior</div>
+                <div class="split-badge tr"><i data-lucide="align-horizontal-justify-center"></i> Frontal</div>
+                <div class="split-badge bl"><i data-lucide="arrow-right-to-line"></i> Lateral</div>
+                <div class="split-badge br"><i data-lucide="box-select"></i> Ortogonal</div>
+                <div id="axis-indicator"></div>
+                <div id="gizmo-container" title="Arrastrar Gizmo"></div>
+            </div>
+
+            <div id="sidebar">
+                <div class="sidebar-tabs">
+                    <button class="tab-btn active" data-target="tab-arq">Arquitectura</button>
+                    <button class="tab-btn" data-target="tab-esc">Objetos</button>
+                    <button class="tab-btn" data-target="tab-per">Personas</button>
+                    <button class="tab-btn" data-target="tab-eq">Equipos</button>
+                </div>
+
+                <div id="tab-arq" class="tab-content active">
+                    <div class="tab-toolbar">
+                        <button class="icon-btn sm btn-add-node" title="Añadir Elemento"><i
+                                data-lucide="plus"></i></button>
+                    </div>
+                    <ul class="tree" id="tree-arq">
+                        <li data-type="grupo" data-id="contenedor-arq">
+                            <div class="tree-item" style="padding-left: 5px;"><span class="caret caret-down"></span><i
+                                    data-lucide="folder-tree" class="node-icon"></i> Contenedor</div>
+                            <ul class="nested active-tree">
+                                <li data-type="grupo" data-id="teatro">
+                                    <div class="tree-item" style="padding-left: 20px;"><span
+                                            class="caret caret-down"></span><i data-lucide="component"
+                                            class="node-icon"></i> Teatro</div>
+                                    <ul class="nested active-tree">
+                                        <li data-type="grupo" data-id="paredes">
+                                            <div class="tree-item" style="padding-left: 35px;">
+                                                <span class="caret caret-down"></span><i data-lucide="layout-panel-left"
+                                                    class="node-icon"></i> Paredes
+                                                <div class="layer-controls">
+                                                    <button class="visibility-btn" data-target="paredes"
+                                                        data-is-group="true"><i data-lucide="eye"></i></button>
+                                                    <button class="lock-btn is-locked" data-target="paredes"
+                                                        data-is-group="true"><i data-lucide="lock"></i></button>
+                                                    <input type="color" class="color-picker layer-picker"
+                                                        data-target="paredes" data-is-group="true" value="#00ffff">
+                                                </div>
+                                            </div>
+                                            <ul class="nested active-tree">
+                                                <li data-type="elemento" data-id="pared-fondo">
+                                                    <div class="tree-item" style="padding-left: 55px;">Fondo <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="pared-fondo" data-parent="paredes"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="pared-fondo"
+                                                                data-parent="paredes"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker"
+                                                                data-target="pared-fondo" data-parent="paredes"
+                                                                value="#00ffff"></div>
+                                                    </div>
+                                                </li>
+                                                <li data-type="elemento" data-id="pared-izq">
+                                                    <div class="tree-item" style="padding-left: 55px;">Izquierda <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="pared-izq" data-parent="paredes"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="pared-izq"
+                                                                data-parent="paredes"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker"
+                                                                data-target="pared-izq" data-parent="paredes"
+                                                                value="#00ffff"></div>
+                                                    </div>
+                                                </li>
+                                                <li data-type="elemento" data-id="pared-der">
+                                                    <div class="tree-item" style="padding-left: 55px;">Derecha <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="pared-der" data-parent="paredes"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="pared-der"
+                                                                data-parent="paredes"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker"
+                                                                data-target="pared-der" data-parent="paredes"
+                                                                value="#00ffff"></div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                        <li data-type="elemento" data-id="piso">
+                                            <div class="tree-item" style="padding-left: 35px;">
+                                                <span style="width:18px; display:inline-block"></span><i
+                                                    data-lucide="layout-dashboard" class="node-icon"></i> Piso
+                                                <div class="layer-controls">
+                                                    <button class="visibility-btn" data-target="piso"><i
+                                                            data-lucide="eye"></i></button>
+                                                    <button class="lock-btn is-locked" data-target="piso"><i
+                                                            data-lucide="lock"></i></button>
+                                                    <input type="color" class="color-picker layer-picker"
+                                                        data-target="piso" value="#00ff00">
+                                                </div>
+                                            </div>
+                                        </li>
+                                        <li data-type="grupo" data-id="barras">
+                                            <div class="tree-item" style="padding-left: 35px;">
+                                                <span class="caret caret-down"></span><i data-lucide="align-justify"
+                                                    class="node-icon"></i> Barras/Tramoya
+                                                <div class="layer-controls">
+                                                    <button class="visibility-btn" data-target="barras"
+                                                        data-is-group="true"><i data-lucide="eye"></i></button>
+                                                    <button class="lock-btn is-locked" data-target="barras"
+                                                        data-is-group="true"><i data-lucide="lock"></i></button>
+                                                    <input type="color" class="color-picker layer-picker"
+                                                        data-target="barras" data-is-group="true" value="#ff00ff">
+                                                </div>
+                                            </div>
+                                            <ul class="nested active-tree">
+                                                <li data-type="elemento" data-id="barra-1">
+                                                    <div class="tree-item" style="padding-left: 55px;">Barra 1 <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="barra-1" data-parent="barras"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="barra-1"
+                                                                data-parent="barras"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker" data-target="barra-1"
+                                                                data-parent="barras" value="#ff00ff"></div>
+                                                    </div>
+                                                </li>
+                                                <li data-type="elemento" data-id="barra-2">
+                                                    <div class="tree-item" style="padding-left: 55px;">Barra 2 <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="barra-2" data-parent="barras"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="barra-2"
+                                                                data-parent="barras"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker" data-target="barra-2"
+                                                                data-parent="barras" value="#ff00ff"></div>
+                                                    </div>
+                                                </li>
+                                                <li data-type="elemento" data-id="barra-3">
+                                                    <div class="tree-item" style="padding-left: 55px;">Barra 3 <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="barra-3" data-parent="barras"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="barra-3"
+                                                                data-parent="barras"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker" data-target="barra-3"
+                                                                data-parent="barras" value="#ff00ff"></div>
+                                                    </div>
+                                                </li>
+                                                <li data-type="elemento" data-id="barra-4">
+                                                    <div class="tree-item" style="padding-left: 55px;">Barra 4 <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="barra-4" data-parent="barras"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="barra-4"
+                                                                data-parent="barras"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker" data-target="barra-4"
+                                                                data-parent="barras" value="#ff00ff"></div>
+                                                    </div>
+                                                </li>
+                                                <li data-type="elemento" data-id="barra-5">
+                                                    <div class="tree-item" style="padding-left: 55px;">Barra 5 <div
+                                                            class="layer-controls"><button class="visibility-btn"
+                                                                data-target="barra-5" data-parent="barras"><i
+                                                                    data-lucide="eye"></i></button><button
+                                                                class="lock-btn is-locked" data-target="barra-5"
+                                                                data-parent="barras"><i
+                                                                    data-lucide="lock"></i></button><input type="color"
+                                                                class="color-picker layer-picker" data-target="barra-5"
+                                                                data-parent="barras" value="#ff00ff"></div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div id="tab-esc" class="tab-content">
+                    <div class="tab-toolbar">
+                        <button class="icon-btn sm btn-add-node" title="Añadir Objeto"><i
+                                data-lucide="plus"></i></button>
+                    </div>
+                    <ul class="tree" id="tree-esc"></ul>
+                </div>
+
+                <div id="tab-per" class="tab-content">
+                    <div class="tab-toolbar">
+                        <button class="icon-btn sm btn-add-node" title="Añadir Persona"><i
+                                data-lucide="plus"></i></button>
+                    </div>
+                    <ul class="tree" id="tree-per"></ul>
+                </div>
+
+                <div id="tab-eq" class="tab-content">
+                    <div class="tab-toolbar">
+                        <button class="icon-btn sm btn-add-node" title="Añadir Equipo"><i
+                                data-lucide="plus"></i></button>
+                    </div>
+                    <ul class="tree" id="tree-eq"></ul>
+                </div>
+            </div>
+
+            <div id="brightness-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <label style="margin: 0;">Intensidad Luz Ambiente</label>
+                    <button id="btn-close-brightness" class="icon-btn sm" style="margin-left: 10px;"><i data-lucide="x"></i></button>
+                </div>
+                <input type="range" id="brightness-slider" min="0" max="1" step="0.01" value="1">
+            </div>
+
+            <div id="properties-panel" class="collapsed">
+                <div id="prop-header">
+                    <span id="prop-title-path">Contenedor</span>
+                    <svg class="panel-toggle-icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 16L6 10H18L12 16Z" />
+                    </svg>
+                </div>
+                <div id="prop-content"></div>
+            </div>
+        </div>
+
+        <div id="watermark">
+            <div class="wm-title">Teatro Tecal</div>
+            <div class="wm-author">By Leonardo Merchán</div>
+            <a href="https://instagram.com/_ledirec" target="_blank" class="wm-link">@_ledirec</a>
+        </div>
+
+        <div id="bottom-bar">
+            <div class="status-item" id="status-coords"><i data-lucide="ruler"></i> <span>8m (W) x 4.5m (H) x 7.5m
+                    (D)</span></div>
+            <div class="status-item"><i data-lucide="camera"></i> <span id="status-cam">Perspectiva (3D)</span></div>
+        </div>
+    </div><!-- #app-shell -->
+
+    <!-- Floating crosshair hint near cursor -->
+    <div id="cursor-move-hint">
+        <svg viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <line x1="7" y1="1" x2="7" y2="5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="7" y1="9" x2="7" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="1" y1="7" x2="5" y2="7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="9" y1="7" x2="13" y2="7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+    </div>
+
+    <!-- Entry Point -->
+    <script type="module" src="js/main.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,20 @@
+/* ============================================================
+   DESIGN TOKENS — Variables CSS globales
+   Centraliza colores, fuentes y espaciado del tema IDE
+   ============================================================ */
+:root {
+    --bg-title: #111111;
+    --bg-ide: #1e1e1e;
+    --bg-sidebar: #252526;
+    --bg-topbar: #333333;
+    --bg-toolbar: #2d2d2d;
+    --bg-bottombar: #333333;
+    --text-main: #cccccc;
+    --text-muted: #858585;
+    --hover-bg: #2a2d2e;
+    --active-bg: #37373d;
+    --border-color: #3c3c3c;
+    --accent: #007acc;
+    --modal-bg: #252526;
+    --modal-header: #333333;
+}

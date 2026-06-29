@@ -1,0 +1,39 @@
+/* ============================================================
+   RESET & GLOBAL — body, scrollbar, box-sizing
+   ============================================================ */
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: var(--bg-ide);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--text-main);
+}
+
+/* Scrollbar — Webkit */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #3a3d41;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Scrollbar — Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #4a4a4a var(--bg-ide);
+}

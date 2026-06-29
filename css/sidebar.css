@@ -1,0 +1,235 @@
+/* ============================================================
+   SIDEBAR — tabs, tree, layers, indent, visibility/lock/color
+   ============================================================ */
+#sidebar {
+    width: 280px;
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    position: absolute;
+    top: 0;
+    bottom: 26px;
+    left: -280px;
+    transition: left 0.3s ease;
+    z-index: 201;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
+}
+
+#sidebar.open {
+    left: 0;
+}
+
+.sidebar-tabs {
+    display: flex;
+    background: var(--bg-topbar);
+    border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 8px 5px;
+    font-size: 10px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-transform: uppercase;
+    border-bottom: 2px solid transparent;
+    letter-spacing: 0.5px;
+    transition: 0.2s;
+}
+
+.tab-btn:hover {
+    color: var(--text-main);
+}
+
+.tab-btn.active {
+    color: var(--text-main);
+    border-bottom-color: var(--accent);
+}
+
+.tab-content {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.tab-content.active {
+    display: flex;
+}
+
+.tab-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 4px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-sidebar);
+    flex-shrink: 0;
+}
+
+#tab-arq .tab-toolbar,
+#tab-eq .tab-toolbar {
+    display: none;
+}
+
+/* Tree */
+ul.tree,
+ul.tree ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+ul.tree {
+    padding-top: 5px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+ul.tree li {
+    user-select: none;
+}
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 10px;
+    font-size: 13px;
+    color: var(--text-main);
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.tree-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.tree-item.selected {
+    background-color: var(--active-bg);
+    color: #fff;
+    border-color: var(--border-color);
+}
+
+.tree-item i[data-lucide].node-icon {
+    width: 14px;
+    height: 14px;
+    margin-right: 6px;
+    color: var(--text-muted);
+}
+
+/* Caret (expand/collapse) */
+.caret {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 4px;
+    transition: transform 0.2s;
+}
+
+.caret::before {
+    content: '▶';
+    font-size: 8px;
+    color: var(--text-muted);
+}
+
+.caret-down::before {
+    transform: rotate(90deg);
+}
+
+.nested {
+    display: none;
+}
+
+.active-tree {
+    display: block;
+}
+
+/* Indent levels */
+.indent-1 {
+    padding-left: 20px;
+}
+
+.indent-2 {
+    padding-left: 35px;
+}
+
+.indent-3 {
+    padding-left: 55px;
+}
+
+/* Layer controls */
+.layer-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.visibility-btn,
+.lock-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.visibility-btn {
+    color: var(--text-main);
+}
+
+.visibility-btn.hidden-layer {
+    opacity: 0.4;
+    color: var(--text-muted);
+}
+
+.lock-btn {
+    color: #ffffff;
+}
+
+.lock-btn.is-locked {
+    color: #666666;
+}
+
+.visibility-btn svg,
+.lock-btn svg {
+    width: 12px;
+    height: 12px;
+    stroke-width: 1.5;
+}
+
+/* Color picker (small circle) */
+.color-picker {
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    background: none;
+    outline: none;
+    -webkit-appearance: none;
+}
+
+.color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.color-picker::-webkit-color-swatch {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+}
+
+.color-picker::-moz-color-swatch {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 50%;
+}

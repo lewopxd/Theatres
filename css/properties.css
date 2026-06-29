@@ -1,0 +1,177 @@
+/* ============================================================
+   PROPERTIES PANEL — bottom panel for object properties
+   ============================================================ */
+#properties-panel {
+    background: var(--bg-sidebar);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    height: 195px;
+    transition: transform 0.3s;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 202;
+    box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.3);
+    transform: translateY(0);
+}
+
+#properties-panel.collapsed {
+    transform: translateY(169px);
+}
+
+#prop-header {
+    height: 26px;
+    background: var(--bg-topbar);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+#prop-header:hover {
+    color: var(--text-main);
+}
+
+#prop-title-path {
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    margin-right: 10px;
+    color: #ffffff;
+}
+
+.breadcrumb-chevron {
+    width: 12px;
+    height: 12px;
+    margin: 0 4px;
+    stroke-width: 3px;
+    flex-shrink: 0;
+}
+
+.panel-toggle-icon {
+    transition: transform 0.3s;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+}
+
+#properties-panel.collapsed .panel-toggle-icon {
+    transform: rotate(180deg);
+}
+
+#prop-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.prop-tabs-header {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-topbar);
+}
+
+.prop-tab-btn {
+    padding: 6px 15px;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.2s;
+}
+
+.prop-tab-btn:hover {
+    color: var(--text-main);
+}
+
+.prop-tab-btn.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+
+.prop-tab-content {
+    display: none;
+    gap: 20px;
+    padding: 10px 15px 15px 15px; /* Added extra bottom padding */
+    flex-wrap: wrap;
+    align-items: flex-start;
+    overflow-y: auto;
+}
+
+.prop-tab-content.active {
+    display: flex;
+}
+
+.prop-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.prop-section-title {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+}
+
+.prop-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.prop-row label {
+    width: 55px;
+    color: var(--text-muted);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.prop-input {
+    background: var(--bg-ide);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    padding: 4px;
+    border-radius: 3px;
+    font-size: 12px;
+    width: 75px;
+    outline: none;
+}
+
+.prop-input:focus {
+    border-color: var(--accent);
+}
+
+.prop-input[type="color"] {
+    width: 30px;
+    height: 24px;
+    padding: 0;
+    cursor: pointer;
+}
+
+.prop-input[disabled] {
+    opacity: 0.3;
+    cursor: not-allowed;
+}

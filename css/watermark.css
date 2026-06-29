@@ -1,0 +1,71 @@
+/* ============================================================
+   WATERMARK — bottom-right branding overlay
+   ============================================================ */
+#watermark {
+    position: fixed;
+    bottom: 55px;
+    right: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 9999;
+    color: rgba(255, 255, 255, 0.25);
+    text-align: right;
+    user-select: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+#watermark .wm-title {
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+#watermark .wm-author {
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 1.5px;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+#watermark .wm-link {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    opacity: 0.7;
+    margin-top: 4px;
+    pointer-events: auto;
+    color: inherit;
+    text-decoration: none;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+#watermark .wm-link:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+
+@media (max-width: 768px) {
+    #watermark {
+        bottom: 50px;
+        right: 10px;
+    }
+
+    #watermark .wm-title {
+        font-size: 18px;
+        letter-spacing: 2px;
+    }
+
+    #watermark .wm-author {
+        font-size: 10px;
+        letter-spacing: 1px;
+    }
+
+    #watermark .wm-link {
+        font-size: 9px;
+    }
+}

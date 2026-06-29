@@ -1,0 +1,187 @@
+/* ============================================================
+   TOP-BAR — RESPONSIVE FLEX WRAP
+   Grupos semánticos que saltan de fila cuando no caben
+   ============================================================ */
+#top-bar {
+    background-color: var(--bg-topbar);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    align-content: center;
+    padding: 4px 8px;
+    gap: 3px;
+    border-bottom: 1px solid var(--border-color);
+    z-index: 300;
+    flex-shrink: 0;
+    position: relative;
+    /* sin height fijo: la barra crece lo que necesite */
+}
+
+/* Grupos de botones que se mantienen juntos y no se parten */
+.tb-group {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+/* Separador vertical entre grupos */
+.tb-sep {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+/* El grupo de acción derecha (undo/redo/brillo) en PC flota a la derecha;
+   en pantallas estrechas pasa a la siguiente fila y se alinea a la izquierda */
+.tb-group-right {
+    margin-left: auto;
+}
+
+@media (max-width: 560px) {
+    .tb-group-right {
+        margin-left: 0;
+        /* ocupa toda la fila para mantener alineación */
+        order: 99;
+    }
+
+    /* en móvil pequeño, padding mínimo */
+    #top-bar {
+        padding: 3px 6px;
+        gap: 2px;
+    }
+
+    .tb-sep {
+        margin: 0 2px;
+    }
+}
+
+/* TOOLBAR 2D — también wrap */
+#toolbar-2d {
+    background-color: var(--bg-toolbar);
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 3px 8px;
+    gap: 3px;
+    border-bottom: 1px solid var(--border-color);
+    z-index: 299;
+    flex-shrink: 0;
+    position: relative;
+}
+
+#toolbar-2d.active {
+    display: flex;
+}
+
+/* Icon button — base component */
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-main);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.icon-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+.icon-btn.active {
+    background-color: var(--active-bg);
+    color: #fff;
+    border: 1px solid var(--border-color);
+}
+
+.icon-btn.sm {
+    width: 28px;
+    height: 28px;
+}
+
+.icon-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* .separator legacy — kept for 2D toolbar inline use */
+.separator {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+    margin: 0 4px;
+    flex-shrink: 0;
+}
+
+/* Move planes buttons */
+#move-planes {
+    display: none;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+#move-planes.visible {
+    display: flex;
+}
+
+.btn-plane {
+    font-size: 10px;
+    font-weight: bold;
+    width: 32px;
+    height: 24px;
+    letter-spacing: 0;
+}
+
+.btn-plane.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+/* Axis indicator */
+#axis-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #fff;
+    pointer-events: none;
+    display: none;
+    z-index: 200;
+    letter-spacing: 1px;
+}
+
+#axis-indicator.visible {
+    display: block;
+}
+
+/* Brightness container */
+#brightness-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--bg-sidebar);
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    z-index: 120;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    font-size: 12px;
+}
