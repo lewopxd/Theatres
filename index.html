@@ -66,7 +66,8 @@
 
             <!-- GRUPO 1: Menú + toggle 2D/3D -->
             <div class="tb-group">
-                <button id="btn-menu" class="icon-btn" title="Explorador"><i data-lucide="menu"></i></button>
+                <button id="btn-top-explorer" class="icon-btn" title="Explorador"><i data-lucide="folder-tree"></i></button>
+                <button id="btn-top-properties" class="icon-btn" title="Propiedades"><i data-lucide="sliders-horizontal"></i></button>
                 <div class="tb-sep"></div>
                 <button id="btn-toggle-view" class="icon-btn active" title="Alternar 2D/3D"><i
                         data-lucide="box"></i></button>
@@ -138,14 +139,19 @@
         </div>
 
         <div id="main-wrapper">
-            <div id="canvas-wrapper" class="tool-orbit">
+            <div id="activity-bar">
+                <button id="btn-act-explorer" class="act-btn" title="Explorador"><i data-lucide="folder-tree"></i></button>
+                <button id="btn-act-properties" class="act-btn" title="Propiedades"><i data-lucide="sliders-horizontal"></i></button>
+            </div>
+            
+            <div id="canvas-wrapper" class="tool-orbit single-active">
                 <div class="split-divider v"></div>
                 <div class="split-divider h"></div>
                 <div class="split-badge tl"><i data-lucide="arrow-down-to-line"></i> Superior</div>
                 <div class="split-badge tr"><i data-lucide="align-horizontal-justify-center"></i> Frontal</div>
                 <div class="split-badge bl"><i data-lucide="arrow-right-to-line"></i> Lateral</div>
                 <div class="split-badge br"><i data-lucide="box-select"></i> Ortogonal</div>
-                <div id="axis-indicator"></div>
+                <div class="single-badge tl" id="single-badge"><i data-lucide="box"></i> <span>Perspectiva (3D)</span></div>
                 <div id="gizmo-container" title="Arrastrar Gizmo"></div>
             </div>
 
@@ -358,11 +364,13 @@
             </div>
 
             <div id="properties-panel" class="collapsed">
+                <div class="sidebar-tabs" id="prop-desktop-header">
+                    <button class="tab-btn active">Propiedades</button>
+                </div>
                 <div id="prop-header">
                     <span id="prop-title-path">Contenedor</span>
-                    <svg class="panel-toggle-icon" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 16L6 10H18L12 16Z" />
-                    </svg>
+                    <span id="desktop-prop-title">Propiedades</span>
+                    <i data-lucide="chevron-down" class="panel-toggle-icon"></i>
                 </div>
                 <div id="prop-content"></div>
             </div>

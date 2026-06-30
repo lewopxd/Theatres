@@ -20,18 +20,24 @@ export function initSidebar() {
     sidebarEl.addEventListener('mousedown', () => { sidebarEl.style.zIndex = State.bumpZ(); });
     $('properties-panel').addEventListener('mousedown', () => { $('properties-panel').style.zIndex = State.bumpZ(); });
 
-    // Menu toggle
-    $('btn-menu').addEventListener('click', function () {
+    // Explorer toggle
+    const toggleExplorer = function () {
         const willOpen = !sidebarEl.classList.contains('open');
         sidebarEl.classList.toggle('open');
-        this.classList.toggle('active');
+        $('btn-top-explorer').classList.toggle('active', !willOpen); // Wait, if it WILL open, it becomes active. So active=willOpen
+        $('btn-top-explorer').classList.toggle('active', willOpen);
+        $('btn-act-explorer').classList.toggle('active', willOpen);
         if (willOpen) EventBus.emit('ui:closeOthers', 'sidebar');
-    });
+    };
+    
+    $('btn-top-explorer').addEventListener('click', toggleExplorer);
+    $('btn-act-explorer').addEventListener('click', toggleExplorer);
 
     EventBus.on('ui:closeOthers', (source) => {
         if (source !== 'sidebar') {
             sidebarEl.classList.remove('open');
-            $('btn-menu').classList.remove('active');
+            $('btn-top-explorer').classList.remove('active');
+            $('btn-act-explorer').classList.remove('active');
         }
     });
 
@@ -60,9 +66,11 @@ export function initSidebar() {
             const item = e.target.closest('.tree-item');
             if (!item) { EventBus.emit('selection:clear'); return; }
             const li = item.parentElement;
-            if (li.dataset.type !== 'elemento') { EventBus.emit('selection:clear'); return; }
-            const mesh = Registry.findStructureById(li.dataset.id);
-            EventBus.emit('selection:select', { mesh: mesh || null, li, showProps: false });
+            let mesh = null;
+            if (li.dataset.type === 'elemento') {
+                mesh = Registry.findStructureById(li.dataset.id);
+            }
+            EventBus.emit('selection:select', { mesh, li, showProps: false });
         });
 
         // Tree dblclick (select + show props)
@@ -71,9 +79,11 @@ export function initSidebar() {
             const item = e.target.closest('.tree-item');
             if (!item) return;
             const li = item.parentElement;
-            if (li.dataset.type !== 'elemento') return;
-            const mesh = Registry.findStructureById(li.dataset.id);
-            if (mesh) EventBus.emit('selection:select', { mesh, li, showProps: true });
+            let mesh = null;
+            if (li.dataset.type === 'elemento') {
+                mesh = Registry.findStructureById(li.dataset.id);
+            }
+            EventBus.emit('selection:select', { mesh, li, showProps: true });
         });
     });
 

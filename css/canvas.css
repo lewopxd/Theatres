@@ -9,6 +9,14 @@
     height: 100%;
     overflow: hidden;
     z-index: 10;
+    transition: left 0.3s ease, width 0.3s ease;
+}
+
+@media (min-width: 768px) {
+    #canvas-wrapper {
+        left: 48px;
+        width: calc(100% - 48px);
+    }
 }
 
 /* Split view dividers */
@@ -42,7 +50,7 @@
 }
 
 /* Split view badges */
-.split-badge {
+.split-badge, .single-badge {
     position: absolute;
     display: none;
     align-items: center;
@@ -53,13 +61,13 @@
     font-weight: 300;
     padding: 3px 8px;
     border-radius: 6px;
-    z-index: 20;
+    z-index: 500;
     pointer-events: none;
     backdrop-filter: blur(4px);
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.split-badge svg {
+.split-badge svg, .single-badge svg {
     width: 12px;
     height: 12px;
     stroke-width: 1.2px;
@@ -70,7 +78,11 @@
     display: flex;
 }
 
-.split-badge.tl { top: 15px; left: 15px; }
+.single-active .single-badge {
+    display: flex;
+}
+
+.split-badge.tl, .single-badge.tl { top: 15px; left: 15px; }
 .split-badge.tr { top: 15px; left: calc(50% + 15px); }
 .split-badge.bl { top: calc(50% + 15px); left: 15px; }
 .split-badge.br { top: calc(50% + 15px); left: calc(50% + 15px); }

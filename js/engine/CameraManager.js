@@ -160,6 +160,10 @@ export function autoFitTheatres(container, isSplit, force = false) {
         else if (ctrl === ctrlIso) ctrl.object.position.set(15, 15 + centerY, 15);
         else if (ctrl === ctrlBottom) ctrl.object.position.set(0, -20, 0);
         
+        ctrl.object.up.set(0, 1, 0);
+        if (ctrl === ctrlTop) ctrl.object.up.set(0, 0, -1);
+        else if (ctrl === ctrlBottom) ctrl.object.up.set(0, 0, 1);
+
         ctrl.update();
     });
     

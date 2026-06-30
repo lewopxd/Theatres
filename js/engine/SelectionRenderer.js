@@ -16,7 +16,7 @@ scene.add(selectionGroup);
 
 const selectionEdges = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-    new THREE.LineDashedMaterial({ // Changed to dashed material to support both solid and dashed
+    new THREE.LineDashedMaterial({
         color: 0xffffff,
         depthTest: false,
         transparent: true,
@@ -29,13 +29,14 @@ const selectionEdges = new THREE.LineSegments(
 selectionEdges.visible = false;
 selectionGroup.add(selectionEdges);
 
-// Create 20 dots for the 2D bounding box (8 corners + 12 midpoints)
+// Create 8 corner dots + 12 midpoint dots for the 2D bounding box
 const cornerDots = [];
-const dotGeo = new THREE.BoxGeometry(0.08, 0.08, 0.08); // small cube instead of sphere for "editor" feel
+const dotGeo = new THREE.BoxGeometry(0.06, 0.06, 0.06);
 const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false });
 for (let i = 0; i < 20; i++) {
     const dot = new THREE.Mesh(dotGeo, dotMat);
     dot.visible = false;
+    dot.renderOrder = 101;
     selectionGroup.add(dot);
     cornerDots.push(dot);
 }
@@ -48,6 +49,7 @@ export function syncSelectionEdges(mesh) {
     if (!mesh) {
         selectionEdges.visible = false;
         cornerDots.forEach(d => d.visible = false);
+        MoveHandle.hide();
         return;
     }
 
@@ -57,72 +59,69 @@ export function syncSelectionEdges(mesh) {
     const is3DMode = State.get('is3DMode');
     
     if (is3DMode) {
+        // 3D Mode: wireframe edges matching the object's geometry
         selectionEdges.geometry = new THREE.EdgesGeometry(mesh.geometry);
         const wire = Registry.findWireById(mesh.userData.id);
         const color = wire ? wire.userData.baseColor : new THREE.Color(0xffffff);
         selectionEdges.material.color.copy(color);
         selectionEdges.material.opacity = 1.0;
-        selectionEdges.material.dashSize = 1000; // make it effectively solid
+        selectionEdges.material.dashSize = 1000; // effectively solid
         selectionEdges.material.gapSize = 0;
         cornerDots.forEach(d => d.visible = false);
     } else {
-        // 2D Mode: Draw a bounding box around the object
+        // 2D Mode: Dashed bounding box with corner/midpoint dots
         mesh.geometry.computeBoundingBox();
         const box = mesh.geometry.boundingBox;
         
-        // Add no margin to encapsulate the object exactly
-        const margin = 0.0;
-        const w = box.max.x - box.min.x + margin;
-        const h = box.max.y - box.min.y + margin;
-        const d = box.max.z - box.min.z + margin;
+        const w = box.max.x - box.min.x;
+        const h = box.max.y - box.min.y;
+        const d = box.max.z - box.min.z;
         
+        // Create a box geometry centered at origin — NO translate needed
+        // because selectionGroup.position already matches mesh.position
         const boxGeo = new THREE.BoxGeometry(w, h, d);
         selectionEdges.geometry = new THREE.EdgesGeometry(boxGeo);
-        boxGeo.dispose(); // Prevent memory leak since EdgesGeometry makes its own copy
+        boxGeo.dispose();
         
-        const center = new THREE.Vector3();
-        box.getCenter(center);
-        selectionEdges.geometry.translate(center.x, center.y, center.z);
-        
-        selectionEdges.geometry.computeLineDistances(); // required for dashed lines
+        // Compute line distances for dashed material to work
+        selectionEdges.computeLineDistances();
         
         selectionEdges.material.color.setHex(0xffffff);
-        selectionEdges.material.opacity = 0.5; // Slightly transparent white
-        selectionEdges.material.dashSize = 0.2;
-        selectionEdges.material.gapSize = 0.15;
+        selectionEdges.material.opacity = 0.5;
+        selectionEdges.material.dashSize = 0.15;
+        selectionEdges.material.gapSize = 0.1;
         
-        // Update 20 dots (8 corners + 12 midpoints)
+        // Position the 20 dots in LOCAL space (relative to the group)
         const hw = w / 2;
         const hh = h / 2;
         const hd = d / 2;
-        const cx = center.x, cy = center.y, cz = center.z;
         
         const pts = [
             // 8 corners
-            new THREE.Vector3(cx - hw, cy - hh, cz - hd),
-            new THREE.Vector3(cx + hw, cy - hh, cz - hd),
-            new THREE.Vector3(cx - hw, cy + hh, cz - hd),
-            new THREE.Vector3(cx + hw, cy + hh, cz - hd),
-            new THREE.Vector3(cx - hw, cy - hh, cz + hd),
-            new THREE.Vector3(cx + hw, cy - hh, cz + hd),
-            new THREE.Vector3(cx - hw, cy + hh, cz + hd),
-            new THREE.Vector3(cx + hw, cy + hh, cz + hd),
+            new THREE.Vector3(-hw, -hh, -hd),
+            new THREE.Vector3( hw, -hh, -hd),
+            new THREE.Vector3(-hw,  hh, -hd),
+            new THREE.Vector3( hw,  hh, -hd),
+            new THREE.Vector3(-hw, -hh,  hd),
+            new THREE.Vector3( hw, -hh,  hd),
+            new THREE.Vector3(-hw,  hh,  hd),
+            new THREE.Vector3( hw,  hh,  hd),
             
-            // 12 midpoints
-            new THREE.Vector3(cx, cy - hh, cz - hd), // bottom front mid
-            new THREE.Vector3(cx, cy + hh, cz - hd), // top front mid
-            new THREE.Vector3(cx, cy - hh, cz + hd), // bottom back mid
-            new THREE.Vector3(cx, cy + hh, cz + hd), // top back mid
+            // 12 midpoints of edges
+            new THREE.Vector3(  0, -hh, -hd),
+            new THREE.Vector3(  0,  hh, -hd),
+            new THREE.Vector3(  0, -hh,  hd),
+            new THREE.Vector3(  0,  hh,  hd),
             
-            new THREE.Vector3(cx - hw, cy, cz - hd), // left front mid
-            new THREE.Vector3(cx + hw, cy, cz - hd), // right front mid
-            new THREE.Vector3(cx - hw, cy, cz + hd), // left back mid
-            new THREE.Vector3(cx + hw, cy, cz + hd), // right back mid
+            new THREE.Vector3(-hw,   0, -hd),
+            new THREE.Vector3( hw,   0, -hd),
+            new THREE.Vector3(-hw,   0,  hd),
+            new THREE.Vector3( hw,   0,  hd),
             
-            new THREE.Vector3(cx - hw, cy - hh, cz), // left bottom mid
-            new THREE.Vector3(cx + hw, cy - hh, cz), // right bottom mid
-            new THREE.Vector3(cx - hw, cy + hh, cz), // left top mid
-            new THREE.Vector3(cx + hw, cy + hh, cz)  // right top mid
+            new THREE.Vector3(-hw, -hh,   0),
+            new THREE.Vector3( hw, -hh,   0),
+            new THREE.Vector3(-hw,  hh,   0),
+            new THREE.Vector3( hw,  hh,   0)
         ];
         
         for (let i = 0; i < 20; i++) {
@@ -131,10 +130,21 @@ export function syncSelectionEdges(mesh) {
         }
     }
     
+    // Position the group at the mesh's world transform
     selectionGroup.position.copy(mesh.position);
     selectionGroup.rotation.copy(mesh.rotation);
     selectionGroup.scale.copy(mesh.scale);
 
     // Keep move handle synced
     MoveHandle.update(mesh);
+}
+
+/**
+ * Update the position of the selection edges and move handle without full resync
+ * Useful when dragging the ghost instead of the real mesh.
+ * @param {THREE.Vector3} pos
+ */
+export function updateSelectionPosition(pos) {
+    selectionGroup.position.copy(pos);
+    MoveHandle.setPosition(pos);
 }

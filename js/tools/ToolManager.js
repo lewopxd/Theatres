@@ -22,7 +22,7 @@ export function setActiveTool(tool) {
     const btnPan = $('btn-pan');
     const movePlanes = $('move-planes');
     const canvasWrapper = $('canvas-wrapper');
-    const axisIndicator = $('axis-indicator');
+
 
     btnSelect.classList.toggle('active', tool === 'select');
     btnMove.classList.toggle('active', tool === 'move');
@@ -30,7 +30,16 @@ export function setActiveTool(tool) {
     btnPan.classList.toggle('active', tool === 'pan');
 
     movePlanes.classList.toggle('visible', tool === 'move');
-    canvasWrapper.className = 'tool-' + tool;
+    // Remove all existing tool-* classes safely
+    const classesToRemove = [];
+    canvasWrapper.classList.forEach(cls => {
+        if (cls.startsWith('tool-')) {
+            classesToRemove.push(cls);
+        }
+    });
+    classesToRemove.forEach(cls => canvasWrapper.classList.remove(cls));
+    // Add the new tool class
+    canvasWrapper.classList.add('tool-' + tool);
 
     const is3DMode = State.get('is3DMode');
     ctrl3D.enabled = is3DMode;
@@ -60,13 +69,9 @@ export function setActiveTool(tool) {
     }
 
     if (tool === 'move') {
-        const activePlane = State.get('activePlane');
-        axisIndicator.textContent = AXIS_LABELS[activePlane];
-        axisIndicator.classList.add('visible');
-        setTimeout(() => axisIndicator.classList.remove('visible'), 1800);
-    } else {
-        axisIndicator.classList.remove('visible');
+        // Any other move tool setup if needed
     }
+
 
     EventBus.emit('tool:changed', { tool });
 }

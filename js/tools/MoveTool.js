@@ -7,7 +7,7 @@ import { State } from '../core/State.js';
 import { EventBus } from '../core/EventBus.js';
 import { setRaycasterFromEvent, getRaycaster } from '../engine/RaycasterManager.js';
 import { Registry } from '../core/Registry.js';
-import { syncSelectionEdges } from '../engine/SelectionRenderer.js';
+import { syncSelectionEdges, updateSelectionPosition } from '../engine/SelectionRenderer.js';
 import { History } from '../core/History.js';
 import { AXIS_LABELS, DEFAULT_STAGE } from '../utils/constants.js';
 import { $ } from '../utils/dom.js';
@@ -21,9 +21,13 @@ const dragIntersect = new THREE.Vector3();
 const dragStart = new THREE.Vector3();
 let dragObject = null;
 let currentEffectivePlane = 'xz';
+let currentDragMode = 'top';
 
 function getEffectivePlane(e) {
-    if (State.get('is3DMode')) return State.get('activePlane');
+    if (State.get('is3DMode')) {
+        currentDragMode = '3d';
+        return State.get('activePlane');
+    }
     
     let mode = State.get('active2DMode');
     if (State.get('isSplit')) {
@@ -32,15 +36,43 @@ function getEffectivePlane(e) {
         const nx = (e.clientX - rect.left) / rect.width;
         const ny = 1.0 - ((e.clientY - rect.top) / rect.height);
         
+        // Must match CameraManager.splitViews layout:
         if (nx < 0.5 && ny > 0.5) mode = 'top';
-        else if (nx >= 0.5 && ny > 0.5) mode = 'ortho';
+        else if (nx >= 0.5 && ny > 0.5) mode = 'front';
         else if (nx < 0.5 && ny <= 0.5) mode = 'left';
-        else mode = 'right';
+        else mode = 'ortho';
     }
+    
+    currentDragMode = mode;
     
     if (mode === 'top' || mode === 'bottom') return 'xz';
     if (mode === 'left' || mode === 'right') return 'yz';
-    return 'xz'; // default and ortho
+    if (mode === 'front') return 'xy';
+    return 'xz';
+}
+
+function getActiveBadge() {
+    if (!State.get('isSplit')) return document.getElementById('single-badge');
+    if (currentDragMode === 'top') return document.querySelector('.split-badge.tl');
+    if (currentDragMode === 'front') return document.querySelector('.split-badge.tr');
+    if (currentDragMode === 'left') return document.querySelector('.split-badge.bl');
+    if (currentDragMode === 'ortho') return document.querySelector('.split-badge.br');
+    return null;
+}
+
+function getObjectName(mesh) {
+    let objName = mesh.userData.shape || 'Objeto';
+    const li = document.querySelector(`li[data-id="${mesh.userData.id}"]`);
+    if (li) {
+        const treeItem = li.querySelector('.tree-item');
+        if (treeItem) {
+            const clone = treeItem.cloneNode(true);
+            const ctrls = clone.querySelector('.layer-controls');
+            if (ctrls) ctrls.remove();
+            objName = clone.innerText.trim() || objName;
+        }
+    }
+    return objName;
 }
 
 /**
@@ -60,18 +92,38 @@ export function initDrag(e) {
     if (!raycaster.ray.intersectPlane(dragPlaneObj, dragIntersect)) return;
 
     State.set('isDragging', true);
+    if (e.stopPropagation) e.stopPropagation();
     dragObject = selectedMesh;
     dragStart.copy(selectedMesh.position);
     dragOffset.copy(dragIntersect).sub(selectedMesh.position);
 
-    // Create ghost at original position
     DragGhost.create(selectedMesh);
 
     const canvasWrapper = $('canvas-wrapper');
-    const axisIndicator = $('axis-indicator');
     canvasWrapper.classList.add('dragging-move');
-    axisIndicator.textContent = AXIS_LABELS[currentEffectivePlane];
-    axisIndicator.classList.add('visible');
+
+    const badge = getActiveBadge();
+    if (badge) {
+        let coordsSpan = badge.querySelector('.drag-coords');
+        if (!coordsSpan) {
+            coordsSpan = document.createElement('div');
+            coordsSpan.className = 'drag-coords';
+            coordsSpan.style.position = 'absolute';
+            coordsSpan.style.top = 'calc(100% + 4px)';
+            coordsSpan.style.left = '0';
+            coordsSpan.style.whiteSpace = 'nowrap';
+            coordsSpan.style.background = 'rgba(15, 15, 15, 0.4)';
+            coordsSpan.style.padding = '3px 8px';
+            coordsSpan.style.borderRadius = '6px';
+            coordsSpan.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+            coordsSpan.style.color = '#ccc';
+            coordsSpan.style.fontWeight = '200'; // ultralight
+            coordsSpan.style.backdropFilter = 'blur(4px)';
+            badge.appendChild(coordsSpan);
+        }
+        coordsSpan.style.display = 'block';
+        coordsSpan.innerText = `${getObjectName(dragObject)} (...)`;
+    }
 }
 
 /**
@@ -93,7 +145,33 @@ export function performDrag(e) {
         applyClamp(dragObject, newPos);
     }
 
-    updateMeshPosVec(dragObject, newPos);
+    DragGhost.setPosition(newPos);
+    updateSelectionPosition(newPos);
+    
+    const badge = getActiveBadge();
+    if (badge) {
+        const coordsSpan = badge.querySelector('.drag-coords');
+        if (coordsSpan) {
+            const x = newPos.x.toFixed(2);
+            const y = newPos.y.toFixed(2);
+            const z = newPos.z.toFixed(2);
+            let text = `${getObjectName(dragObject)} (`;
+            if (State.get('visualZUp')) {
+                if (currentEffectivePlane === 'xz') text += `x:${x}, y:${z}`;
+                else if (currentEffectivePlane === 'xy') text += `x:${x}, z:${y}`;
+                else if (currentEffectivePlane === 'yz') text += `z:${y}, y:${z}`;
+            } else {
+                if (currentEffectivePlane === 'xz') text += `x:${x}, z:${z}`;
+                else if (currentEffectivePlane === 'xy') text += `x:${x}, y:${y}`;
+                else if (currentEffectivePlane === 'yz') text += `y:${y}, z:${z}`;
+            }
+            text += ')';
+            coordsSpan.innerText = text;
+        }
+    }
+    
+    // Update live coordinates based on ghost position
+    EventBus.emit('statusbar:coords', { mesh: { userData: dragObject.userData, position: newPos } });
 }
 
 /**
@@ -101,15 +179,21 @@ export function performDrag(e) {
  */
 export function endDrag() {
     State.set('isDragging', false);
-    dragObject = null;
 
-    // Remove ghost
+    if (dragObject) {
+        const finalPos = DragGhost.getPosition();
+        if (finalPos) {
+            updateMeshPosVec(dragObject, finalPos);
+        }
+    }
+
+    dragObject = null;
     DragGhost.remove();
 
     const canvasWrapper = $('canvas-wrapper');
-    const axisIndicator = $('axis-indicator');
     canvasWrapper.classList.remove('dragging-move');
-    axisIndicator.classList.remove('visible');
+
+    document.querySelectorAll('.drag-coords').forEach(el => el.style.display = 'none');
 
     const selectedMesh = State.get('selectedMesh');
     if (selectedMesh) {

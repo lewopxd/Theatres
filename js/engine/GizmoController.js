@@ -3,6 +3,7 @@
 // ============================================================
 
 import * as THREE from 'three';
+import { Settings } from '../core/Settings.js';
 
 export class MinimalGizmo {
     constructor(mainCamera, renderer, domElement) {
@@ -35,8 +36,13 @@ export class MinimalGizmo {
         };
 
         createAxis(new THREE.Vector3(1, 0, 0), 0xff3333, 'X');
-        createAxis(new THREE.Vector3(0, 1, 0), 0x33ff33, 'Y');
-        createAxis(new THREE.Vector3(0, 0, 1), 0x3333ff, 'Z');
+        if (Settings.get('visualZUp')) {
+            createAxis(new THREE.Vector3(0, 1, 0), 0x3333ff, 'Z');
+            createAxis(new THREE.Vector3(0, 0, 1), 0x33ff33, 'Y');
+        } else {
+            createAxis(new THREE.Vector3(0, 1, 0), 0x33ff33, 'Y');
+            createAxis(new THREE.Vector3(0, 0, 1), 0x3333ff, 'Z');
+        }
         this._initDrag();
     }
 

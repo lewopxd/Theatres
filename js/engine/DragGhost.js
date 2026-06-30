@@ -84,10 +84,25 @@ export const DragGhost = {
         }
     },
 
-    /**
-     * Whether a ghost is currently active
-     */
     get isActive() {
         return ghostGroup !== null;
+    },
+
+    /**
+     * Set the position of the ghost
+     * @param {THREE.Vector3} pos
+     */
+    setPosition(pos) {
+        if (ghostGroup) {
+            ghostGroup.position.copy(pos);
+        }
+    },
+
+    /**
+     * Get the position of the ghost
+     * @returns {THREE.Vector3|null}
+     */
+    getPosition() {
+        return ghostGroup ? ghostGroup.position.clone() : null;
     }
 };

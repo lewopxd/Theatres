@@ -1,16 +1,14 @@
 // ============================================================
-// MoveHandle — Cruceta 3D de arrastre para objetos seleccionados
-// Aparece en el centro del objeto seleccionado (si es editable
-// y no bloqueado). Arrastrar desde ella activa el modo "move".
+// MoveHandle — Punto central para indicar selección y permitir
+// iniciar el arrastre haciendo clic explícitamente en él.
+// Las líneas de los ejes han sido eliminadas por solicitud del usuario.
 // ============================================================
 
 import * as THREE from 'three';
 import { scene } from './SceneManager.js';
+import { State } from '../core/State.js';
 
-const AXIS_LENGTH = 0.35;
-const SPHERE_RADIUS = 0.1;
-const SPHERE_SEGMENTS = 12;
-const HIT_RADIUS = 0.18; // slightly larger for easier clicking
+const HIT_RADIUS = 0.25;
 
 // Colors
 const SPHERE_COLOR_NORMAL = 0xffffff;
@@ -25,14 +23,14 @@ handleGroup.visible = false;
 handleGroup.renderOrder = 200;
 
 // Central box (white, semi-transparent)
-const centerGeo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+const centerGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
 const sphereMat = new THREE.MeshBasicMaterial({
     color: SPHERE_COLOR_NORMAL,
     transparent: true,
     opacity: SPHERE_OPACITY_NORMAL,
     depthTest: false
 });
-const sphereMesh = new THREE.Mesh(centerGeo, sphereMat); // keeping variable name to minimize changes below
+const sphereMesh = new THREE.Mesh(centerGeo, sphereMat);
 sphereMesh.renderOrder = 201;
 handleGroup.add(sphereMesh);
 
@@ -44,38 +42,57 @@ hitMesh.name = '__moveHandle_hit__';
 hitMesh.renderOrder = 202;
 handleGroup.add(hitMesh);
 
-// Axis lines
-function makeAxisLine(dir, color) {
-    const points = [
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(dir.x * AXIS_LENGTH, dir.y * AXIS_LENGTH, dir.z * AXIS_LENGTH)
-    ];
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({
-        color,
-        depthTest: false,
-        linewidth: 2
-    });
-    const line = new THREE.Line(geo, mat);
-    line.renderOrder = 201;
-    return line;
-}
-
-// Positive and negative directions for each axis
-const xPos = makeAxisLine(new THREE.Vector3(1, 0, 0), 0xff4444);
-const xNeg = makeAxisLine(new THREE.Vector3(-1, 0, 0), 0xff4444);
-const yPos = makeAxisLine(new THREE.Vector3(0, 1, 0), 0x44ff44);
-const yNeg = makeAxisLine(new THREE.Vector3(0, -1, 0), 0x44ff44);
-const zPos = makeAxisLine(new THREE.Vector3(0, 0, 1), 0x4488ff);
-const zNeg = makeAxisLine(new THREE.Vector3(0, 0, -1), 0x4488ff);
-
-handleGroup.add(xPos, xNeg, yPos, yNeg, zPos, zNeg);
-
 // Add to scene
 scene.add(handleGroup);
 
 // Track hover state
 let _isHovered = false;
+
+/**
+ * Compute the handle position for 2D mode.
+ * Positions the handle on the visible surface of the object
+ * based on the current orthographic view direction.
+ * @param {THREE.Mesh} mesh
+ * @returns {THREE.Vector3}
+ */
+function getHandlePosition2D(mesh) {
+    const pos = mesh.position.clone();
+    
+    if (!mesh.geometry.boundingBox) {
+        mesh.geometry.computeBoundingBox();
+    }
+    const box = mesh.geometry.boundingBox;
+    
+    const mode = State.get('active2DMode');
+    
+    // Small offset so the handle clears the wireframe lines
+    const OFFSET = 0.08;
+    
+    // Offset PAST the surface facing the camera so the handle
+    // floats visibly above the wireframe in the current view
+    switch (mode) {
+        case 'top':
+            pos.y += box.max.y + OFFSET;
+            break;
+        case 'bottom':
+            pos.y += box.min.y - OFFSET;
+            break;
+        case 'left':
+            pos.x += box.min.x - OFFSET;
+            break;
+        case 'right':
+            pos.x += box.max.x + OFFSET;
+            break;
+        case 'front':
+            pos.z += box.max.z + OFFSET;
+            break;
+        default:
+            // 'ortho' / isometric — keep center
+            break;
+    }
+    
+    return pos;
+}
 
 // ---- Public API ----
 export const MoveHandle = {
@@ -88,7 +105,11 @@ export const MoveHandle = {
             this.hide();
             return;
         }
-        handleGroup.position.copy(mesh.position);
+        if (State.get('is3DMode')) {
+            handleGroup.position.copy(mesh.position);
+        } else {
+            handleGroup.position.copy(getHandlePosition2D(mesh));
+        }
         handleGroup.visible = true;
         this.setHover(false);
     },
@@ -107,7 +128,20 @@ export const MoveHandle = {
      */
     update(mesh) {
         if (!mesh || !handleGroup.visible) return;
-        handleGroup.position.copy(mesh.position);
+        if (State.get('is3DMode')) {
+            handleGroup.position.copy(mesh.position);
+        } else {
+            handleGroup.position.copy(getHandlePosition2D(mesh));
+        }
+    },
+
+    /**
+     * Update position directly (used during ghost drag)
+     * @param {THREE.Vector3} pos
+     */
+    setPosition(pos) {
+        if (!handleGroup.visible) return;
+        handleGroup.position.copy(pos);
     },
 
     /**

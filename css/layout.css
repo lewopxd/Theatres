@@ -38,6 +38,58 @@
     min-height: 0;
 }
 
+#activity-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 48px;
+    height: 100%;
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    display: none; /* Hidden on mobile */
+    flex-direction: column;
+    align-items: center;
+    padding-top: 10px;
+    gap: 10px;
+    z-index: 210;
+}
+
+.act-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.act-btn:hover {
+    color: var(--text-main);
+    background: var(--hover-bg);
+}
+
+.act-btn.active {
+    color: #ffffff;
+    background: var(--active-bg);
+    border-left: 2px solid var(--accent);
+}
+
+.act-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+@media (min-width: 768px) {
+    #activity-bar {
+        display: flex;
+    }
+}
+
 /* FIX MOBILE: safe-area-inset-bottom para notch / Dynamic Island */
 #bottom-bar {
     height: 24px;

@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { renderer } from './SceneManager.js';
-import { cam3D, camOrthoMain, camTop, camLeft, camRight } from './CameraManager.js';
+import { cam3D, camOrthoMain, camTop, camLeft, camRight, camFront, camIso, splitViews } from './CameraManager.js';
 import { State } from '../core/State.js';
 import { Registry } from '../core/Registry.js';
 
@@ -17,40 +17,38 @@ const mouse = new THREE.Vector2();
  */
 export function setRaycasterFromEvent(e) {
     const rect = renderer.domElement.getBoundingClientRect();
-    
-    // Normalize coordinates relative to full canvas (0 to 1)
-    // Note: ny is typically 1.0 at the top, 0.0 at the bottom for WebGL, 
-    // but e.clientY is 0 at top, so ny = 1.0 - (clientY / height)
     const nx = (e.clientX - rect.left) / rect.width;
     const ny = 1.0 - ((e.clientY - rect.top) / rect.height);
     
-    let x = nx * 2 - 1;
-    let y = ny * 2 - 1;
-    let cam = State.get('is3DMode') ? cam3D : camOrthoMain;
+    let x, y;
+    let cam;
     
-    if (!State.get('is3DMode') && State.get('isSplit')) {
-        // Split view mode logic
-        // Top-Left: Top View (camTop)
-        // Top-Right: Isometric (camOrthoMain)
-        // Bottom-Left: Left View (camLeft)
-        // Bottom-Right: Right View (camRight)
+    if (State.get('is3DMode')) {
+        // 3D mode: full canvas, perspective camera
+        x = nx * 2 - 1;
+        y = ny * 2 - 1;
+        cam = cam3D;
+    } else if (!State.get('isSplit')) {
+        // 2D single view: full canvas, ortho main camera
+        x = nx * 2 - 1;
+        y = ny * 2 - 1;
+        cam = camOrthoMain;
+    } else {
+        // 2D split view: find which quadrant the click is in
+        // Use the actual splitViews layout from CameraManager
+        cam = camOrthoMain; // fallback
+        x = nx * 2 - 1;
+        y = ny * 2 - 1;
         
-        if (nx < 0.5 && ny > 0.5) {
-            cam = camTop;
-            x = (nx / 0.5) * 2 - 1;
-            y = ((ny - 0.5) / 0.5) * 2 - 1;
-        } else if (nx >= 0.5 && ny > 0.5) {
-            cam = camOrthoMain;
-            x = ((nx - 0.5) / 0.5) * 2 - 1;
-            y = ((ny - 0.5) / 0.5) * 2 - 1;
-        } else if (nx < 0.5 && ny <= 0.5) {
-            cam = camLeft;
-            x = (nx / 0.5) * 2 - 1;
-            y = (ny / 0.5) * 2 - 1;
-        } else {
-            cam = camRight;
-            x = ((nx - 0.5) / 0.5) * 2 - 1;
-            y = (ny / 0.5) * 2 - 1;
+        for (const v of splitViews) {
+            if (nx >= v.left && nx < v.left + v.width &&
+                ny >= v.bottom && ny < v.bottom + v.height) {
+                // Remap coordinates to this quadrant's local space
+                x = ((nx - v.left) / v.width) * 2 - 1;
+                y = ((ny - v.bottom) / v.height) * 2 - 1;
+                cam = v.cam;
+                break;
+            }
         }
     }
     

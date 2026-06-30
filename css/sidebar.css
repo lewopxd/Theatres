@@ -23,7 +23,7 @@
 
 .sidebar-tabs {
     display: flex;
-    background: var(--bg-topbar);
+    background: transparent;
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
 }
@@ -232,4 +232,13 @@ ul.tree li {
 .color-picker::-moz-color-swatch {
     border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 50%;
+}
+
+@media (min-width: 768px) {
+    #sidebar {
+        bottom: 0;
+    }
+    #sidebar.open {
+        left: 48px;
+    }
 }

@@ -64,7 +64,15 @@ function initToggleView() {
             toolbar2d.classList.remove('active');
             State.set('isSplit', false);
             container.classList.remove('split-active');
+            container.classList.add('single-active');
             statusCam.innerText = 'Perspectiva (3D)';
+            
+            // Update single view badge for 3D
+            const singleBadge = $('single-badge');
+            if (singleBadge) {
+                singleBadge.innerHTML = `<i data-lucide="box"></i> <span>Perspectiva (3D)</span>`;
+                if (window.lucide) window.lucide.createIcons();
+            }
             State.set('isWireframe', State.get('previousWireframeState'));
             btnWireframe.classList.toggle('active', State.get('isWireframe'));
             btnWireframe.classList.remove('disabled');
@@ -230,13 +238,26 @@ function init2DToolbar() {
             if (mode === 'split') {
                 State.set('isSplit', true);
                 container.classList.add('split-active');
+                container.classList.remove('single-active');
                 statusCam.innerText = 'Vista Dividida (2D)';
             } else {
                 State.set('isSplit', false);
                 container.classList.remove('split-active');
+                container.classList.add('single-active');
                 State.set('active2DMode', mode);
                 setupCamPos(camOrthoMain, mode, ctrlOrthoMain);
                 statusCam.innerText = `Ortográfica — ${btn.title}`;
+                
+                // Update single view badge
+                const singleBadge = $('single-badge');
+                if (singleBadge) {
+                    const iconEl = btn.querySelector('[data-lucide]');
+                    if (iconEl) {
+                        const icon = iconEl.getAttribute('data-lucide');
+                        singleBadge.innerHTML = `<i data-lucide="${icon}"></i> <span>${btn.title}</span>`;
+                        if (window.lucide) window.lucide.createIcons();
+                    }
+                }
             }
 
             resizeCameras(container, State.get('is3DMode'), State.get('isSplit'));

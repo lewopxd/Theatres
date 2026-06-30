@@ -4,6 +4,7 @@
 
 import { delay, createIcons, $ } from './utils/dom.js';
 import { State } from './core/State.js';
+import { Settings } from './core/Settings.js';
 import { EventBus } from './core/EventBus.js';
 import { History } from './core/History.js';
 import { Registry } from './core/Registry.js';
@@ -42,6 +43,7 @@ import { DRAG_THRESHOLD } from './utils/constants.js';
 // BOOT SEQUENCE
 // ============================================================
 async function boot() {
+    Settings.init();
 
     // STEP 1: DOM
     initLoader();
@@ -169,10 +171,20 @@ function initCanvasPointerEvents(container) {
             const tool = State.get('activeTool');
             const selectedMesh = State.get('selectedMesh');
 
-            // Check if clicking on the move handle crosshair
+            // Check if clicking directly on the selected object OR the move handle
             if (selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
                 const raycaster = getRaycaster();
-                if (MoveHandle.hitTest(raycaster)) {
+                
+                // Temporarily make the mesh visible for raycasting (useful in 2D mode where it might be a wireframe)
+                const wasVisible = selectedMesh.visible;
+                selectedMesh.visible = true;
+                const intersects = raycaster.intersectObject(selectedMesh, false);
+                selectedMesh.visible = wasVisible;
+                
+                const hitHandle = MoveHandle.hitTest(raycaster);
+                
+                if (intersects.length > 0 || hitHandle) {
+                    e.stopPropagation(); // Stop OrbitControls from panning
                     // Auto-activate move tool and start drag immediately
                     if (tool !== 'move') {
                         State.set('preDragTool', tool);
@@ -194,40 +206,33 @@ function initCanvasPointerEvents(container) {
         const selectedMesh = State.get('selectedMesh');
         const isDragging = State.get('isDragging');
 
-        // Handle hover detection and visibility of move handle
+        // Handle visibility of the center point (MoveHandle)
         if (selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
             setRaycasterFromEvent(e);
             const raycaster = getRaycaster();
             
-            const objectHovered = raycaster.intersectObject(selectedMesh, false).length > 0;
             const handleHovered = MoveHandle.isVisible && MoveHandle.hitTest(raycaster);
             
             if (!MoveHandle.isVisible) MoveHandle.show(selectedMesh);
             MoveHandle.setHover(handleHovered);
-            canvasWrapper.classList.toggle('handle-hover', handleHovered);
         } else {
             if (MoveHandle.isVisible) {
                 MoveHandle.hide();
-                canvasWrapper.classList.remove('handle-hover');
             }
         }
 
-        // Global hover effect for ANY unlocked object
-        if (!isPointerDown) {
+        // Handle global hover effect — ONLY in 3D mode (no hover in 2D per user request)
+        if (!isPointerDown && State.get('is3DMode')) {
             setRaycasterFromEvent(e);
             const raycaster = getRaycaster();
-            // Use getIntersected if RaycasterManager has it cached, but let's just do it cleanly
-            const intersects = raycaster.intersectObjects(scene.children, true);
+            const visibleStructures = Registry.getStructures().filter(
+                m => m.userData.layerVisible && !m.userData.locked
+            );
+            const intersects = raycaster.intersectObjects(visibleStructures, false);
+            
             let hoverMesh = null;
-            for (const hit of intersects) {
-                const obj = hit.object;
-                if (obj.userData && obj.userData.id) {
-                    const foundMesh = Registry.findStructureById(obj.userData.id);
-                    if (foundMesh && !foundMesh.userData.locked && foundMesh.userData.layerVisible) {
-                        hoverMesh = foundMesh;
-                        break;
-                    }
-                }
+            if (intersects.length > 0) {
+                hoverMesh = intersects[0].object;
             }
             
             const prevHover = State.get('hoverMesh');
@@ -243,8 +248,8 @@ function initCanvasPointerEvents(container) {
                     }
                 }
                 
-                // Apply new hover state
-                if (hoverMesh && State.get('is3DMode')) {
+                // Apply new hover state (3D only)
+                if (hoverMesh) {
                     if (hoverMesh.material && hoverMesh.material.emissive) {
                         hoverMesh.material.emissive.setHex(0x333333);
                     }
@@ -255,6 +260,19 @@ function initCanvasPointerEvents(container) {
                 }
                 
                 State.set('hoverMesh', hoverMesh);
+            }
+        } else if (!State.get('is3DMode')) {
+            // Clear any leftover hover when in 2D
+            const prevHover = State.get('hoverMesh');
+            if (prevHover) {
+                if (prevHover.material && prevHover.material.emissive) {
+                    prevHover.material.emissive.setHex(0x000000);
+                }
+                const prevWire = Registry.findWireById(prevHover.userData.id);
+                if (prevWire && prevWire.material) {
+                    prevWire.material.color.copy(prevWire.userData.baseColor);
+                }
+                State.set('hoverMesh', null);
             }
         }
     };

@@ -4,7 +4,6 @@
 
 import { State } from '../core/State.js';
 import { EventBus } from '../core/EventBus.js';
-import { scene } from '../engine/SceneManager.js';
 import { Registry } from '../core/Registry.js';
 import { setRaycasterFromEvent, getIntersected, getRaycaster } from '../engine/RaycasterManager.js';
 import { DBL_CLICK_MS, DRAG_THRESHOLD } from '../utils/constants.js';
@@ -50,10 +49,11 @@ export function handleSelectClick(e, pointerDownPos) {
     });
     
     let hitMesh = null;
-    if (intersects.length > 0) {
-        hitMesh = intersects[0].object;
-        if (hitMesh.userData && hitMesh.userData.locked) {
-            hitMesh = null; // ignore locked objects
+    for (let i = 0; i < intersects.length; i++) {
+        const obj = intersects[i].object;
+        if (!obj.userData || !obj.userData.locked) {
+            hitMesh = obj;
+            break;
         }
     }
 

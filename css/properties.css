@@ -21,6 +21,11 @@
     transform: translateY(169px);
 }
 
+#prop-desktop-header,
+.desktop-breadcrumb {
+    display: none;
+}
+
 #prop-header {
     height: 26px;
     background: var(--bg-topbar);
@@ -51,6 +56,10 @@
     flex: 1;
     margin-right: 10px;
     color: #ffffff;
+}
+
+#desktop-prop-title {
+    display: none;
 }
 
 .breadcrumb-chevron {
@@ -113,7 +122,7 @@
     padding: 10px 15px 15px 15px; /* Added extra bottom padding */
     flex-wrap: wrap;
     align-items: flex-start;
-    overflow-y: auto;
+    overflow-y: hidden;
 }
 
 .prop-tab-content.active {
@@ -161,7 +170,138 @@
 }
 
 .prop-input:focus {
+    outline: none;
     border-color: var(--accent);
+}
+
+/* Accordion styles (hidden on mobile by default) */
+.accordion-header {
+    display: none;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: var(--text-main);
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 15px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.accordion-header:hover {
+    background: var(--hover-bg);
+}
+
+.accordion-header svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s;
+}
+
+.accordion-header.collapsed svg {
+    transform: rotate(-90deg);
+}
+
+/* ============================================================
+   RESPONSIVE (DESKTOP)
+   ============================================================ */
+@media (min-width: 768px) {
+    #properties-panel {
+        top: 0;
+        bottom: 0;
+        left: 48px;
+        right: auto;
+        width: 280px;
+        height: 100%;
+        border-top: none;
+        border-right: 1px solid var(--border-color);
+        border-left: none;
+        transform: translateX(0);
+        flex-direction: column; /* Restore column layout */
+    }
+    
+    #properties-panel.collapsed {
+        transform: translateX(-280px); /* Hide completely to the left */
+    }
+    
+    #prop-header {
+        display: none; /* Hide mobile header */
+    }
+    
+    #prop-desktop-header {
+        display: flex; /* Show desktop tab */
+    }
+    
+    #prop-title-path {
+        display: none;
+    }
+    
+    #desktop-prop-title {
+        display: none;
+    }
+    
+    #prop-content {
+        width: 100%;
+        height: auto;
+        flex: 1;
+        display: block;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    /* Chevron rotation no longer needed because prop-header is hidden */
+
+    /* Desktop breadcrumb injected via JS */
+    .desktop-breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 10px 15px;
+        font-size: 11px;
+        border-bottom: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-main);
+    }
+
+    /* Hide horizontal tabs */
+    .prop-tabs-header {
+        display: none;
+    }
+    
+    #prop-content {
+        overflow-y: auto;
+    }
+    
+    /* Show all tab contents since they are now accordions */
+    .prop-tab-content {
+        display: block; /* Ignore .active */
+        padding: 0; /* Padding moves inside accordion body */
+        border-bottom: none;
+        flex-shrink: 0;
+        overflow: visible;
+    }
+    
+    /* Show accordion headers */
+    .accordion-header {
+        display: flex;
+    }
+    
+    /* Content wrapping */
+    .accordion-body {
+        padding: 10px 15px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        overflow: hidden;
+    }
+    
+    .accordion-body.collapsed {
+        display: none;
+    }
 }
 
 .prop-input[type="color"] {
