@@ -62,7 +62,28 @@ export function setRaycasterFromEvent(e) {
  */
 export function getIntersected() {
     const testObjects = Registry.getStructures().filter(m => m.userData.layerVisible);
-    return raycaster.intersectObjects(testObjects, false);
+    const intersects = raycaster.intersectObjects(testObjects, true);
+    return mapIntersectsToStructures(intersects, testObjects);
+}
+
+/**
+ * Maps intersected objects back to the top-level structures array
+ * @param {THREE.Intersection[]} intersects
+ * @param {THREE.Object3D[]} structures
+ * @returns {THREE.Intersection[]}
+ */
+export function mapIntersectsToStructures(intersects, structures) {
+    const mapped = intersects.map(hit => {
+        let obj = hit.object;
+        while (obj && !structures.includes(obj)) {
+            obj = obj.parent;
+        }
+        if (obj) {
+            return { ...hit, object: obj };
+        }
+        return hit;
+    });
+    return mapped.filter(hit => structures.includes(hit.object));
 }
 
 /**

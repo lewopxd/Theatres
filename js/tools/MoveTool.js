@@ -84,11 +84,27 @@ export function initDrag(e) {
     if (!selectedMesh || !selectedMesh.userData.editable || selectedMesh.userData.locked) return;
 
     setRaycasterFromEvent(e);
+    const raycaster = getRaycaster();
+    
+    // Find the exact point where the user clicked to position the drag plane correctly in depth
+    let coplanarPoint = selectedMesh.position.clone();
+    const wasVisible = selectedMesh.visible;
+    selectedMesh.visible = true;
+    const intersects = raycaster.intersectObject(selectedMesh, true);
+    selectedMesh.visible = wasVisible;
+
+    if (intersects.length > 0) {
+        coplanarPoint.copy(intersects[0].point);
+    } else {
+        // Fallback to bounding box center if they clicked the handle instead of the mesh
+        const box = new THREE.Box3().setFromObject(selectedMesh);
+        box.getCenter(coplanarPoint);
+    }
+
     currentEffectivePlane = getEffectivePlane(e);
     const normal = getPlaneNormal(currentEffectivePlane);
-    dragPlaneObj.setFromNormalAndCoplanarPoint(normal, selectedMesh.position);
+    dragPlaneObj.setFromNormalAndCoplanarPoint(normal, coplanarPoint);
 
-    const raycaster = getRaycaster();
     if (!raycaster.ray.intersectPlane(dragPlaneObj, dragIntersect)) return;
 
     State.set('isDragging', true);
@@ -146,7 +162,7 @@ export function performDrag(e) {
     }
 
     DragGhost.setPosition(newPos);
-    updateSelectionPosition(newPos);
+    updateSelectionPosition(newPos, dragObject);
     
     const badge = getActiveBadge();
     if (badge) {
@@ -255,7 +271,7 @@ export function updateGeometry(paramKey, val) {
         const wire = Registry.findWireById(data.id);
         if (wire) {
             wire.geometry.dispose();
-            wire.geometry = new THREE.EdgesGeometry(newGeo);
+            wire.geometry = new THREE.WireframeGeometry(newGeo);
         }
         syncSelectionEdges(selectedMesh);
     }

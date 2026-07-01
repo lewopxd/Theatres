@@ -9,6 +9,7 @@ import { serializeState, createGeoFromParams } from '../theatre/TheatreSerialize
 import { createStruct } from '../theatre/StructureBuilder.js';
 import { syncSelectionEdges } from '../engine/SelectionRenderer.js';
 import { createIcons, $ } from '../utils/dom.js';
+import { PersonasEngine } from '../engine/PersonasEngine.js';
 import { HISTORY_MAX, STORAGE_KEY } from '../utils/constants.js';
 import { State } from './State.js';
 import { EventBus } from './EventBus.js';
@@ -30,7 +31,7 @@ export const History = {
         localStorage.setItem(STORAGE_KEY, stateStr);
     },
 
-    load(stateStr) {
+    async load(stateStr) {
         if (!stateStr) return;
         const state = JSON.parse(stateStr);
         baseBgColor.setHex(state.bg);
@@ -46,71 +47,113 @@ export const History = {
         // Remove structures not in saved state
         for (let i = structures.length - 1; i >= 0; i--) {
             if (!stateIds.includes(structures[i].userData.id)) {
+                if (structures[i].userData.isPersona) {
+                    PersonasEngine.removePersona(structures[i]);
+                }
                 scene.remove(structures[i]);
-                structures[i].geometry.dispose();
+                if (structures[i].geometry) structures[i].geometry.dispose();
                 scene.remove(wires[i]);
-                wires[i].geometry.dispose();
+                if (wires[i].geometry) wires[i].geometry.dispose();
                 structures.splice(i, 1);
                 wires.splice(i, 1);
             }
         }
 
         // Restore/create structures
-        state.m.forEach(sm => {
+        for (const sm of state.m) {
             let m = Registry.findStructureById(sm.id);
             if (!m) {
-                const mat = new THREE.MeshStandardMaterial({
-                    color: sm.mat.c,
-                    opacity: (sm.g === 'paredes' || sm.id === 'piso') ? 1.0 : sm.mat.o,
-                    roughness: sm.mat.r,
-                    metalness: sm.mat.met,
-                    transparent: ((sm.g === 'paredes' || sm.id === 'piso') ? 1.0 : sm.mat.o) < 1.0
-                });
-                const geo = createGeoFromParams(sm.type, sm.geo);
-                m = createStruct(
-                    geo, mat,
-                    '#' + sm.wire.toString(16).padStart(6, '0'),
-                    sm.id, sm.g, sm.p[0], sm.p[1], sm.p[2], sm.rz, sm.type, sm.geo
-                );
-                m.userData.editable = sm.edit;
+                if (sm.isP) {
+                    m = await PersonasEngine.createPersona(sm.pT, sm.name);
+                    m.userData.id = sm.id;
+                    m.userData.group = sm.g;
+                    
+                    const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 1.7, 0.5));
+                    const wireMat = new THREE.LineBasicMaterial({ color: sm.wire });
+                    const wire = new THREE.LineSegments(wireGeo, wireMat);
+                    wire.userData = { id: sm.id, group: sm.g, baseColor: new THREE.Color(sm.wire), layerVisible: sm.vis, isPersonaWire: true };
+                    wire.position.y = 0.85;
+
+                    m.position.fromArray(sm.p);
+                    m.rotation.z = sm.rz;
+                    wire.position.copy(m.position);
+                    wire.rotation.copy(m.rotation);
+                    wire.visible = false; // Never show the static fallback wire for Personas
+                    
+                    scene.add(m);
+                    scene.add(wire);
+                    Registry.addStructure(m);
+                    Registry.addWire(wire);
+                } else {
+                    const mat = new THREE.MeshStandardMaterial({
+                        color: sm.mat.c,
+                        opacity: (sm.g === 'paredes' || sm.id === 'piso') ? 1.0 : sm.mat.o,
+                        roughness: sm.mat.r,
+                        metalness: sm.mat.met,
+                        transparent: ((sm.g === 'paredes' || sm.id === 'piso') ? 1.0 : sm.mat.o) < 1.0
+                    });
+                    const geo = createGeoFromParams(sm.type, sm.geo);
+                    m = createStruct(
+                        geo, mat,
+                        '#' + sm.wire.toString(16).padStart(6, '0'),
+                        sm.id, sm.g, sm.p[0], sm.p[1], sm.p[2], sm.rz, sm.type, sm.geo
+                    );
+                    m.userData.editable = sm.edit;
+                }
             } else {
                 m.position.fromArray(sm.p);
                 m.rotation.z = sm.rz;
-                m.material.color.setHex(sm.mat.c);
-                m.material.opacity = (sm.g === 'paredes' || sm.id === 'piso') ? 1.0 : sm.mat.o;
-                m.material.transparent = m.material.opacity < 1.0;
-                if (m.material.isMeshStandardMaterial) {
-                    m.material.roughness = sm.mat.r;
-                    m.material.metalness = sm.mat.met;
-                }
-                m.userData.geoParams = sm.geo;
-                m.userData.materialPreset = sm.mat.pre;
-                m.userData.layerVisible = sm.vis;
-                m.userData.locked = sm.lock;
+                
+                if (sm.isP) {
+                    m.userData.layerVisible = sm.vis;
+                    m.userData.locked = sm.lock;
+                    PersonasEngine.updateAllometry(m, sm.h || 1.7);
+                    const w = Registry.findWireById(sm.id);
+                    if (w) {
+                        w.position.copy(m.position);
+                        w.rotation.copy(m.rotation);
+                        w.userData.baseColor.setHex(sm.wire);
+                        w.userData.layerVisible = sm.vis;
+                    }
+                } else {
+                    m.material.color.setHex(sm.mat.c);
+                    m.material.opacity = (sm.g === 'paredes' || sm.id === 'piso') ? 1.0 : sm.mat.o;
+                    m.material.transparent = m.material.opacity < 1.0;
+                    if (m.material.isMeshStandardMaterial) {
+                        m.material.roughness = sm.mat.r;
+                        m.material.metalness = sm.mat.met;
+                    }
+                    m.userData.geoParams = sm.geo;
+                    m.userData.materialPreset = sm.mat.pre;
+                    m.userData.layerVisible = sm.vis;
+                    m.userData.locked = sm.lock;
 
-                const newGeo = createGeoFromParams(sm.type, sm.geo);
-                m.geometry.dispose();
-                m.geometry = newGeo;
+                    const newGeo = createGeoFromParams(sm.type, sm.geo);
+                    m.geometry.dispose();
+                    m.geometry = newGeo;
 
-                const w = Registry.findWireById(sm.id);
-                if (w) {
-                    w.geometry.dispose();
-                    w.geometry = new THREE.EdgesGeometry(newGeo);
-                    w.position.copy(m.position);
-                    w.rotation.copy(m.rotation);
-                    w.userData.baseColor.setHex(sm.wire);
-                    w.userData.layerVisible = sm.vis;
+                    const w = Registry.findWireById(sm.id);
+                    if (w) {
+                        w.geometry.dispose();
+                        w.geometry = (m.userData.editable && sm.type === 'box') ? new THREE.WireframeGeometry(newGeo) : new THREE.EdgesGeometry(newGeo);
+                        w.position.copy(m.position);
+                        w.rotation.copy(m.rotation);
+                        w.userData.baseColor.setHex(sm.wire);
+                        w.userData.layerVisible = sm.vis;
+                    }
                 }
             }
-        });
+        }
 
         // Restore trees
         const treeArq = $('tree-arq');
         const treeEsc = $('tree-esc');
         const treeEq = $('tree-eq');
+        const treePer = $('tree-per');
         if (state.tArq && treeArq) treeArq.innerHTML = state.tArq;
         if (state.tEsc && treeEsc) treeEsc.innerHTML = state.tEsc;
         if (state.tEq && treeEq) treeEq.innerHTML = state.tEq;
+        if (state.tPer && treePer) treePer.innerHTML = state.tPer;
 
         createIcons();
         applyLayerVisibility(State.get('is3DMode'), State.get('isWireframe'));
@@ -128,18 +171,18 @@ export const History = {
         }
     },
 
-    undo() {
+    async undo() {
         if (this.undoStack.length <= 1) return;
         this.redoStack.push(this.undoStack.pop());
-        this.load(this.undoStack[this.undoStack.length - 1]);
+        await this.load(this.undoStack[this.undoStack.length - 1]);
         this.updateBtns();
     },
 
-    redo() {
+    async redo() {
         if (this.redoStack.length === 0) return;
         const stateStr = this.redoStack.pop();
         this.undoStack.push(stateStr);
-        this.load(stateStr);
+        await this.load(stateStr);
         this.updateBtns();
     },
 
@@ -153,12 +196,12 @@ export const History = {
     /**
      * Restore from localStorage
      */
-    restoreFromStorage() {
+    async restoreFromStorage() {
         const savedState = localStorage.getItem(STORAGE_KEY);
         if (savedState) {
             try {
                 this.undoStack.push(savedState);
-                this.load(savedState);
+                await this.load(savedState);
             } catch (e) {
                 console.warn('Estado guardado inválido, reiniciando.', e);
                 localStorage.removeItem(STORAGE_KEY);

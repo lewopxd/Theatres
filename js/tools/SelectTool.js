@@ -5,7 +5,7 @@
 import { State } from '../core/State.js';
 import { EventBus } from '../core/EventBus.js';
 import { Registry } from '../core/Registry.js';
-import { setRaycasterFromEvent, getIntersected, getRaycaster } from '../engine/RaycasterManager.js';
+import { setRaycasterFromEvent, getIntersected, getRaycaster, mapIntersectsToStructures } from '../engine/RaycasterManager.js';
 import { DBL_CLICK_MS, DRAG_THRESHOLD } from '../utils/constants.js';
 import { isOverUI } from '../utils/dom.js';
 
@@ -41,7 +41,8 @@ export function handleSelectClick(e, pointerDownPos) {
     });
     
     const raycaster = getRaycaster();
-    const intersects = raycaster.intersectObjects(structures, false);
+    let intersects = raycaster.intersectObjects(structures, true);
+    intersects = mapIntersectsToStructures(intersects, structures);
     
     // Restore visibility
     structures.forEach(m => {

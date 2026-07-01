@@ -13,10 +13,14 @@ import { MoveHandle } from '../engine/MoveHandle.js';
 import { createIcons, $ } from '../utils/dom.js';
 import { Settings } from '../core/Settings.js';
 import { applyLayerVisibility } from '../engine/SceneManager.js';
+import { PersonasEngine } from '../engine/PersonasEngine.js';
 
 const propPanel = () => $('properties-panel');
 const propHeader = () => $('prop-header');
 const propContent = () => $('prop-content');
+
+let animManifest = null;
+let posesManifest = null;
 
 /**
  * Initialize properties panel
@@ -34,6 +38,10 @@ export function initPropertiesPanel() {
     $('prop-header').addEventListener('click', toggleProperties);
     $('btn-top-properties').addEventListener('click', toggleProperties);
     $('btn-act-properties').addEventListener('click', toggleProperties);
+
+    // Preload personas manifests
+    PersonasEngine.fetchManifest('animaciones').then(d => animManifest = d);
+    PersonasEngine.fetchManifest('poses').then(d => posesManifest = d);
 
     EventBus.on('ui:closeOthers', (source) => {
         if (source !== 'properties') {
@@ -339,7 +347,7 @@ function renderMeshProperties(mesh, wireColorHex, li) {
     tabsHeader.appendChild(btnTab1);
     tabsHeader.appendChild(btnTab2);
     tabsHeader.appendChild(btnTab3);
-    if (mesh.material.isMeshStandardMaterial) tabsHeader.appendChild(btnTab4);
+    if (mesh.material && mesh.material.isMeshStandardMaterial) tabsHeader.appendChild(btnTab4);
     content.appendChild(tabsHeader);
 
     // Tab 1: General (Name & Dimensions)
@@ -362,26 +370,68 @@ function renderMeshProperties(mesh, wireColorHex, li) {
     accBody1.appendChild(secName);
 
     if (data.editable) {
-        const secGeo = document.createElement('div');
-        secGeo.className = 'prop-section';
-        secGeo.innerHTML = `<div class="prop-section-title">Dimensiones</div>`;
-        const p = data.geoParams;
-        if (data.geoType === 'box') {
-            secGeo.appendChild(createPropRow('Ancho (X)', 'number', p.w, v => updateGeometry('w', v), undefined, undefined, isLocked));
-            if (Settings.get('visualZUp')) {
-                secGeo.appendChild(createPropRow('Prof (Y)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
-                secGeo.appendChild(createPropRow('Alto (Z)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
-            } else {
-                secGeo.appendChild(createPropRow('Alto (Y)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
-                secGeo.appendChild(createPropRow('Prof (Z)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
+        if (data.isPersona) {
+            const secAna = document.createElement('div');
+            secAna.className = 'prop-section';
+            secAna.innerHTML = `<div class="prop-section-title">Anatomía (Alometría)</div>`;
+            secAna.appendChild(createPropRow('Altura (m)', 'number', data.height.toFixed(2), v => {
+                PersonasEngine.updateAllometry(mesh, parseFloat(v));
+                syncSelectionEdges(mesh);
+            }, 1.0, 0.01, isLocked));
+            accBody1.appendChild(secAna);
+
+            const secAnim = document.createElement('div');
+            secAnim.className = 'prop-section';
+            secAnim.innerHTML = `<div class="prop-section-title">Animación / Pose</div>`;
+            if (animManifest) {
+                const animOptions = { '': 'Ninguna' };
+                animManifest.forEach(a => animOptions[a.file] = a.name);
+                secAnim.appendChild(createPropSelect('Animación', animOptions, data.currentAction || '', async v => {
+                    data.currentAction = v;
+                    if (v) {
+                        await PersonasEngine.loadAsset(mesh, `assets/modelos3d/personas/animaciones/${v}`, true);
+                    } else if (mesh.userData.mixer) {
+                        mesh.userData.mixer.stopAllAction();
+                    }
+                    syncSelectionEdges(mesh);
+                }, isLocked));
             }
-        } else if (data.geoType === 'cylinder' || data.geoType === 'cone') {
-            secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
-            secGeo.appendChild(createPropRow('Alto', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
-        } else if (data.geoType === 'sphere') {
-            secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
+            if (posesManifest) {
+                const posesOptions = { '': 'Ninguna' };
+                posesManifest.forEach(p => posesOptions[p.file] = p.name);
+                secAnim.appendChild(createPropSelect('Pose', posesOptions, data.currentAction || '', async v => {
+                    data.currentAction = v;
+                    if (v) {
+                        await PersonasEngine.loadAsset(mesh, `assets/modelos3d/personas/poses/${v}`, false);
+                    } else if (mesh.userData.mixer) {
+                        mesh.userData.mixer.stopAllAction();
+                    }
+                    syncSelectionEdges(mesh);
+                }, isLocked));
+            }
+            accBody1.appendChild(secAnim);
+        } else {
+            const secGeo = document.createElement('div');
+            secGeo.className = 'prop-section';
+            secGeo.innerHTML = `<div class="prop-section-title">Dimensiones</div>`;
+            const p = data.geoParams;
+            if (data.geoType === 'box') {
+                secGeo.appendChild(createPropRow('Ancho (X)', 'number', p.w, v => updateGeometry('w', v), undefined, undefined, isLocked));
+                if (Settings.get('visualZUp')) {
+                    secGeo.appendChild(createPropRow('Prof (Y)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
+                    secGeo.appendChild(createPropRow('Alto (Z)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
+                } else {
+                    secGeo.appendChild(createPropRow('Alto (Y)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
+                    secGeo.appendChild(createPropRow('Prof (Z)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
+                }
+            } else if (data.geoType === 'cylinder' || data.geoType === 'cone') {
+                secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
+                secGeo.appendChild(createPropRow('Alto', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
+            } else if (data.geoType === 'sphere') {
+                secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
+            }
+            accBody1.appendChild(secGeo);
         }
-        accBody1.appendChild(secGeo);
     }
     tab1.appendChild(accBody1);
     content.appendChild(tab1);
@@ -439,15 +489,17 @@ function renderMeshProperties(mesh, wireColorHex, li) {
         if (chevron) chevron.style.color = v;
     }, undefined, undefined, isLocked));
 
-    secColor.appendChild(createPropRow('Relleno', 'color', `#${mesh.material.color.getHexString()}`, v => {
-        mesh.material.color.set(v); data.materialPreset = 'custom';
-        const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
-    }, undefined, undefined, isLocked));
+    if (mesh.material) {
+        secColor.appendChild(createPropRow('Relleno', 'color', `#${mesh.material.color.getHexString()}`, v => {
+            mesh.material.color.set(v); data.materialPreset = 'custom';
+            const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
+        }, undefined, undefined, isLocked));
 
-    secColor.appendChild(createPropRow('Opacidad', 'number', mesh.material.opacity, v => {
-        mesh.material.opacity = parseFloat(v); data.materialPreset = 'custom';
-        const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
-    }, 0, 0.1, isLocked));
+        secColor.appendChild(createPropRow('Opacidad', 'number', mesh.material.opacity, v => {
+            mesh.material.opacity = parseFloat(v); data.materialPreset = 'custom';
+            const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
+        }, 0, 0.1, isLocked));
+    }
     
     accBody3.appendChild(secColor);
     tab3.appendChild(accBody3);
@@ -456,7 +508,7 @@ function renderMeshProperties(mesh, wireColorHex, li) {
     // Tab 4: Material
     let tab4;
     let accHead4, accBody4;
-    if (mesh.material.isMeshStandardMaterial) {
+    if (mesh.material && mesh.material.isMeshStandardMaterial) {
         tab4 = document.createElement('div');
         tab4.className = 'prop-tab-content';
         

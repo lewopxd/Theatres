@@ -2,6 +2,7 @@
 // ViewportManager — Render loop, viewport, resize observer
 // ============================================================
 
+import * as THREE from 'three';
 import { renderer, scene } from './SceneManager.js';
 import {
     cam3D, camOrthoMain,
@@ -10,9 +11,12 @@ import {
 } from './CameraManager.js';
 import { State } from '../core/State.js';
 import { Registry } from '../core/Registry.js';
+import { PersonasEngine } from './PersonasEngine.js';
+import { updateLoop as updateSelectionLoop } from './SelectionRenderer.js';
 
 let gizmoRef = null;
 let containerRef = null;
+const clock = new THREE.Clock();
 
 /**
  * Initialize viewport manager
@@ -117,6 +121,9 @@ export function renderFrame() {
 export function startAnimationLoop() {
     function animate() {
         requestAnimationFrame(animate);
+        const delta = clock.getDelta();
+        PersonasEngine.update(delta);
+        updateSelectionLoop();
         renderFrame();
     }
     animate();

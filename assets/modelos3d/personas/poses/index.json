@@ -1,0 +1,14 @@
+[
+    {
+        "name": "Female Sit",
+        "file": "female_sit.glb"
+    },
+    {
+        "name": "Male Sit",
+        "file": "male_sit.glb"
+    },
+    {
+        "name": "Male Sit 2",
+        "file": "male_sit_2.glb"
+    }
+]

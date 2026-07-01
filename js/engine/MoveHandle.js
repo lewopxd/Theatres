@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { scene } from './SceneManager.js';
 import { State } from '../core/State.js';
+import { PersonasEngine } from './PersonasEngine.js';
 
 const HIT_RADIUS = 0.25;
 
@@ -48,21 +49,40 @@ scene.add(handleGroup);
 // Track hover state
 let _isHovered = false;
 
-/**
- * Compute the handle position for 2D mode.
- * Positions the handle on the visible surface of the object
- * based on the current orthographic view direction.
- * @param {THREE.Mesh} mesh
- * @returns {THREE.Vector3}
- */
-function getHandlePosition2D(mesh) {
-    const pos = mesh.position.clone();
-    
-    if (!mesh.geometry.boundingBox) {
-        mesh.geometry.computeBoundingBox();
+function getObjectBounds(mesh) {
+    mesh.updateMatrixWorld(true);
+    const center = new THREE.Vector3();
+    const size = new THREE.Vector3();
+
+    if (mesh.userData.isPersona) {
+        const localBox = PersonasEngine.computeSkinnedBoundingBox(mesh);
+        localBox.getCenter(center);
+        center.applyMatrix4(mesh.matrixWorld);
+        localBox.getSize(size);
+        size.multiply(mesh.scale);
+    } else if (mesh.geometry) {
+        if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox;
+        box.getCenter(center);
+        center.applyMatrix4(mesh.matrixWorld);
+        box.getSize(size);
+        size.multiply(mesh.scale);
+    } else {
+        const box = new THREE.Box3().setFromObject(mesh);
+        box.getCenter(center);
+        box.getSize(size);
     }
-    const box = mesh.geometry.boundingBox;
-    
+    return { center, size };
+}
+
+function getHandlePosition3D(mesh) {
+    const { center } = getObjectBounds(mesh);
+    return center;
+}
+
+function getHandlePosition2D(mesh) {
+    const { center, size } = getObjectBounds(mesh);
+    const pos = center.clone();
     const mode = State.get('active2DMode');
     
     // Small offset so the handle clears the wireframe lines
@@ -71,24 +91,12 @@ function getHandlePosition2D(mesh) {
     // Offset PAST the surface facing the camera so the handle
     // floats visibly above the wireframe in the current view
     switch (mode) {
-        case 'top':
-            pos.y += box.max.y + OFFSET;
-            break;
-        case 'bottom':
-            pos.y += box.min.y - OFFSET;
-            break;
-        case 'left':
-            pos.x += box.min.x - OFFSET;
-            break;
-        case 'right':
-            pos.x += box.max.x + OFFSET;
-            break;
-        case 'front':
-            pos.z += box.max.z + OFFSET;
-            break;
-        default:
-            // 'ortho' / isometric — keep center
-            break;
+        case 'top':    pos.y += size.y / 2 + OFFSET; break;
+        case 'bottom': pos.y -= size.y / 2 + OFFSET; break;
+        case 'left':   pos.x -= size.x / 2 + OFFSET; break;
+        case 'right':  pos.x += size.x / 2 + OFFSET; break;
+        case 'front':  pos.z += size.z / 2 + OFFSET; break;
+        case 'back':   pos.z -= size.z / 2 + OFFSET; break;
     }
     
     return pos;
@@ -106,7 +114,7 @@ export const MoveHandle = {
             return;
         }
         if (State.get('is3DMode')) {
-            handleGroup.position.copy(mesh.position);
+            handleGroup.position.copy(getHandlePosition3D(mesh));
         } else {
             handleGroup.position.copy(getHandlePosition2D(mesh));
         }
@@ -129,7 +137,7 @@ export const MoveHandle = {
     update(mesh) {
         if (!mesh || !handleGroup.visible) return;
         if (State.get('is3DMode')) {
-            handleGroup.position.copy(mesh.position);
+            handleGroup.position.copy(getHandlePosition3D(mesh));
         } else {
             handleGroup.position.copy(getHandlePosition2D(mesh));
         }
@@ -138,10 +146,22 @@ export const MoveHandle = {
     /**
      * Update position directly (used during ghost drag)
      * @param {THREE.Vector3} pos
+     * @param {THREE.Mesh} mesh
      */
-    setPosition(pos) {
+    setPosition(pos, mesh = null) {
         if (!handleGroup.visible) return;
-        handleGroup.position.copy(pos);
+        
+        if (mesh) {
+            const offset = new THREE.Vector3();
+            if (State.get('is3DMode')) {
+                offset.copy(getHandlePosition3D(mesh)).sub(mesh.position);
+            } else {
+                offset.copy(getHandlePosition2D(mesh)).sub(mesh.position);
+            }
+            handleGroup.position.copy(pos).add(offset);
+        } else {
+            handleGroup.position.copy(pos);
+        }
     },
 
     /**

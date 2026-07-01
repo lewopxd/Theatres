@@ -44,9 +44,43 @@ export function updateBrightness(v) {
 export function applyLayerVisibility(is3DMode, isWireframe) {
     const effectiveWireframe = !is3DMode || isWireframe;
     Registry.getStructures().forEach(m => {
-        m.visible = m.userData.layerVisible && !effectiveWireframe;
+        if (m.userData.isPersona) {
+            const wire = Registry.findWireById(m.userData.id);
+            const layerColor = wire ? wire.userData.baseColor : new THREE.Color(0xffffff);
+            m.visible = m.userData.layerVisible;
+            m.traverse(child => {
+                if (child.isMesh && child.material) {
+                    if (effectiveWireframe) {
+                        if (!child.userData.originalMat) {
+                            child.userData.originalMat = child.material;
+                        }
+                        if (!child.userData.wireMat) {
+                            child.userData.wireMat = new THREE.MeshBasicMaterial({
+                                color: layerColor,
+                                wireframe: true,
+                                transparent: true,
+                                opacity: 0.8
+                            });
+                        } else {
+                            child.userData.wireMat.color.copy(layerColor);
+                        }
+                        child.material = child.userData.wireMat;
+                    } else {
+                        if (child.userData.originalMat) {
+                            child.material = child.userData.originalMat;
+                        }
+                    }
+                }
+            });
+        } else {
+            m.visible = m.userData.layerVisible && !effectiveWireframe;
+        }
     });
     Registry.getWires().forEach(w => {
-        w.visible = effectiveWireframe ? w.userData.layerVisible : false;
+        if (w.userData.isPersonaWire) {
+            w.visible = false;
+        } else {
+            w.visible = effectiveWireframe ? w.userData.layerVisible : false;
+        }
     });
 }

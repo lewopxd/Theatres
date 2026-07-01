@@ -15,7 +15,7 @@ import {
     cam3D, ctrl3D, resizeCameras, initOrthoSync, updateActiveOrthoControl
 } from './engine/CameraManager.js';
 import { initViewport, waitForViewport, startAnimationLoop, renderFrame } from './engine/ViewportManager.js';
-import { setRaycasterFromEvent, getRaycaster } from './engine/RaycasterManager.js';
+import { setRaycasterFromEvent, getRaycaster, mapIntersectsToStructures } from './engine/RaycasterManager.js';
 import { MinimalGizmo } from './engine/GizmoController.js';
 import { generateGrid } from './engine/GridGenerator.js';
 import { syncSelectionEdges } from './engine/SelectionRenderer.js';
@@ -160,6 +160,21 @@ function initCanvasPointerEvents(container) {
         isPointerDown = true;
         pointerDownPos = { x: e.clientX, y: e.clientY };
 
+        // Clear hover effect on pointer down so original object doesn't stay white during drag
+        const prevHover = State.get('hoverMesh');
+        if (prevHover) {
+            prevHover.traverse(child => {
+                if (child.isMesh && child.material && child.material.emissive) {
+                    child.material.emissive.setHex(0x000000);
+                }
+            });
+            const prevWire = Registry.findWireById(prevHover.userData.id);
+            if (prevWire && prevWire.material) {
+                prevWire.material.color.copy(prevWire.userData.baseColor);
+            }
+            State.set('hoverMesh', null);
+        }
+
         setRaycasterFromEvent(e);
         
         // Update active controls for 2D mode so they don't all process the pan simultaneously
@@ -178,7 +193,7 @@ function initCanvasPointerEvents(container) {
                 // Temporarily make the mesh visible for raycasting (useful in 2D mode where it might be a wireframe)
                 const wasVisible = selectedMesh.visible;
                 selectedMesh.visible = true;
-                const intersects = raycaster.intersectObject(selectedMesh, false);
+                const intersects = raycaster.intersectObject(selectedMesh, true);
                 selectedMesh.visible = wasVisible;
                 
                 const hitHandle = MoveHandle.hitTest(raycaster);
@@ -228,7 +243,8 @@ function initCanvasPointerEvents(container) {
             const visibleStructures = Registry.getStructures().filter(
                 m => m.userData.layerVisible && !m.userData.locked
             );
-            const intersects = raycaster.intersectObjects(visibleStructures, false);
+            let intersects = raycaster.intersectObjects(visibleStructures, true);
+            intersects = mapIntersectsToStructures(intersects, visibleStructures);
             
             let hoverMesh = null;
             if (intersects.length > 0) {
@@ -239,24 +255,20 @@ function initCanvasPointerEvents(container) {
             if (prevHover !== hoverMesh) {
                 // Restore previous hover state
                 if (prevHover) {
-                    if (prevHover.material && prevHover.material.emissive) {
-                        prevHover.material.emissive.setHex(0x000000);
-                    }
-                    const prevWire = Registry.findWireById(prevHover.userData.id);
-                    if (prevWire && prevWire.material) {
-                        prevWire.material.color.copy(prevWire.userData.baseColor);
-                    }
+                    prevHover.traverse(child => {
+                        if (child.isMesh && child.material && child.material.emissive) {
+                            child.material.emissive.setHex(0x000000);
+                        }
+                    });
                 }
                 
                 // Apply new hover state (3D only)
                 if (hoverMesh) {
-                    if (hoverMesh.material && hoverMesh.material.emissive) {
-                        hoverMesh.material.emissive.setHex(0x333333);
-                    }
-                    const newWire = Registry.findWireById(hoverMesh.userData.id);
-                    if (newWire && newWire.material) {
-                        newWire.material.color.setHex(0xffffff);
-                    }
+                    hoverMesh.traverse(child => {
+                        if (child.isMesh && child.material && child.material.emissive) {
+                            child.material.emissive.setHex(0x333333);
+                        }
+                    });
                 }
                 
                 State.set('hoverMesh', hoverMesh);
@@ -265,9 +277,11 @@ function initCanvasPointerEvents(container) {
             // Clear any leftover hover when in 2D
             const prevHover = State.get('hoverMesh');
             if (prevHover) {
-                if (prevHover.material && prevHover.material.emissive) {
-                    prevHover.material.emissive.setHex(0x000000);
-                }
+                prevHover.traverse(child => {
+                    if (child.isMesh && child.material && child.material.emissive) {
+                        child.material.emissive.setHex(0x000000);
+                    }
+                });
                 const prevWire = Registry.findWireById(prevHover.userData.id);
                 if (prevWire && prevWire.material) {
                     prevWire.material.color.copy(prevWire.userData.baseColor);

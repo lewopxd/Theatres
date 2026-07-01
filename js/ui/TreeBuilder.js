@@ -9,6 +9,8 @@ import { State } from '../core/State.js';
 import { Registry } from '../core/Registry.js';
 import { contextMenu } from './ContextMenuAPI.js';
 import { createIcons } from '../utils/dom.js';
+import { PersonasEngine } from '../engine/PersonasEngine.js';
+import { scene } from '../engine/SceneManager.js';
 
 /**
  * Initialize the add buttons for Escenografía tab
@@ -25,6 +27,17 @@ export function initTreeBuilder() {
                 { icon: 'database', label: 'Cilindro', action: () => { addTreeElement('Cilindro', 'database', 'cylinder'); History.save(); } },
                 { icon: 'circle', label: 'Esfera', action: () => { addTreeElement('Esfera', 'circle', 'sphere'); History.save(); } },
                 { icon: 'triangle', label: 'Cono', action: () => { addTreeElement('Cono', 'triangle', 'cone'); History.save(); } },
+            ]);
+        });
+    }
+    const btnAddPer = document.querySelector('#tab-per .btn-add-node');
+    if (btnAddPer) {
+        btnAddPer.addEventListener('click', e => {
+            e.stopPropagation();
+            const rect = btnAddPer.getBoundingClientRect();
+            contextMenu.show(rect.left, rect.bottom + 5, [
+                { icon: 'user', label: 'Adult Male', action: () => { addPersonaElement('male'); } },
+                { icon: 'user', label: 'Adult Female', action: () => { addPersonaElement('female'); } }
             ]);
         });
     }
@@ -232,5 +245,90 @@ function addTreeElement(name, icon, type) {
         }
         const mat = new THREE.MeshStandardMaterial({ color: 0x6a7b8e, transparent: true });
         createStruct(geo, mat, '#007acc', id, parentGroupId, 0, 0.5, 0, 0, type, params);
+    }
+}
+
+export async function addPersonaElement(type) {
+    let parentLi = State.get('selectedLi');
+    if (parentLi && parentLi.dataset.type !== 'grupo') parentLi = parentLi.parentElement.closest('li');
+
+    const li = document.createElement('li');
+    li.setAttribute('draggable', 'true');
+    const id = `item-${Date.now()}`;
+    li.dataset.type = 'elemento';
+    li.dataset.id = id;
+
+    let targetUl;
+    const activeTab = document.querySelector('#tab-per');
+    let lvl = 1;
+    let parentGroupId = 'personas';
+
+    if (parentLi && parentLi.closest('#tab-per')) {
+        targetUl = parentLi.querySelector(':scope > ul.nested');
+        if (!targetUl) {
+            targetUl = document.createElement('ul');
+            targetUl.className = 'nested active-tree';
+            parentLi.appendChild(targetUl);
+            const pItem = parentLi.querySelector('.tree-item');
+            if (!pItem.querySelector('.caret')) {
+                const c = document.createElement('span');
+                c.className = 'caret caret-down';
+                pItem.insertBefore(c, pItem.firstChild);
+                const spacing = pItem.querySelector('span[style*="width:18px"]');
+                if (spacing) spacing.remove();
+            }
+        }
+        parentGroupId = parentLi.dataset.id || 'personas';
+        let cur = targetUl;
+        while (cur && cur.classList.contains('nested')) {
+            lvl++;
+            cur = cur.parentElement.parentElement?.closest('ul.nested');
+        }
+    } else {
+        targetUl = activeTab.querySelector('ul.tree');
+    }
+
+    const name = type === 'male' ? 'Adult Male' : 'Adult Female';
+    const icon = 'user';
+    let html = `<div class="tree-item" style="padding-left: ${lvl * 15 + 5}px;">`;
+    html += '<span style="width:18px; display:inline-block"></span>';
+    html += `<i data-lucide="${icon}" class="node-icon"></i> ${name} `;
+    
+    // Generar un color aleatorio para diferenciar
+    const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+
+    html += `<div class="layer-controls">
+        <button class="visibility-btn" data-target="${id}" data-parent="${parentGroupId}"><i data-lucide="eye"></i></button>
+        <button class="lock-btn" data-target="${id}" data-parent="${parentGroupId}"><i data-lucide="unlock"></i></button>
+        <input type="color" class="color-picker layer-picker" data-target="${id}" data-parent="${parentGroupId}" value="${randomColor}">
+    </div></div>`;
+
+    li.innerHTML = html;
+    targetUl.appendChild(li);
+    createIcons({ root: li });
+
+    // Load Persona
+    try {
+        const mesh = await PersonasEngine.createPersona(type, name);
+        mesh.userData.id = id;
+        mesh.userData.group = parentGroupId;
+        
+        // Cajas por defecto como wireframe o si es fallback
+        const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 1.7, 0.5));
+        const wireMat = new THREE.LineBasicMaterial({ color: randomColor });
+        const wire = new THREE.LineSegments(wireGeo, wireMat);
+        wire.userData = { id, group: parentGroupId, baseColor: new THREE.Color(randomColor), layerVisible: true, isPersonaWire: true };
+        wire.position.y = 0.85;
+        wire.visible = false; // Never show the static fallback wire for Personas
+
+        // Si no pudo cargar el modelo, es el grupo fallback
+        scene.add(mesh);
+        scene.add(wire);
+        Registry.addStructure(mesh);
+        Registry.addWire(wire);
+        History.save();
+    } catch (e) {
+        console.error('Failed to add persona', e);
+        li.remove();
     }
 }

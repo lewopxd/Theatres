@@ -17,6 +17,23 @@ export function serializeState() {
     return {
         m: structures.map(m => {
             const wire = wires.find(w => w.userData.id === m.userData.id);
+            
+            if (m.userData.isPersona) {
+                return {
+                    id: m.userData.id,
+                    g: m.userData.group,
+                    isP: true,
+                    pT: m.userData.personaType,
+                    name: m.userData.name,
+                    h: m.userData.height,
+                    p: m.position.toArray(),
+                    rz: m.rotation.z,
+                    wire: wire ? wire.userData.baseColor.getHex() : 0xffffff,
+                    vis: m.userData.layerVisible,
+                    lock: m.userData.locked
+                };
+            }
+
             return {
                 id: m.userData.id,
                 g: m.userData.group,
@@ -40,7 +57,8 @@ export function serializeState() {
         bg: baseBgColor.getHex(),
         tArq: document.getElementById('tree-arq')?.innerHTML || '',
         tEsc: document.getElementById('tree-esc')?.innerHTML || '',
-        tEq: document.getElementById('tree-eq')?.innerHTML || ''
+        tEq: document.getElementById('tree-eq')?.innerHTML || '',
+        tPer: document.getElementById('tree-per')?.innerHTML || ''
     };
 }
 

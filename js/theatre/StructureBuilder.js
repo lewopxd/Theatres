@@ -39,8 +39,9 @@ export function createStruct(geo, mat, wireColor, id, group, x, y, z, rotZ = 0, 
     scene.add(mesh);
     Registry.addStructure(mesh);
 
+    const wireGeo = (mesh.userData.editable && geoType === 'box') ? new THREE.WireframeGeometry(geo) : new THREE.EdgesGeometry(geo);
     const wire = new THREE.LineSegments(
-        new THREE.EdgesGeometry(geo),
+        wireGeo,
         new THREE.LineBasicMaterial({
             color: wireColor,
             depthTest: false,
