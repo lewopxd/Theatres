@@ -29,7 +29,8 @@ export function setActiveTool(tool) {
     btnOrbit.classList.toggle('active', tool === 'orbit');
     btnPan.classList.toggle('active', tool === 'pan');
 
-    movePlanes.classList.toggle('visible', tool === 'move');
+    const is3DMode = State.get('is3DMode');
+    movePlanes.classList.toggle('visible', is3DMode);
     // Remove all existing tool-* classes safely
     const classesToRemove = [];
     canvasWrapper.classList.forEach(cls => {
@@ -41,9 +42,7 @@ export function setActiveTool(tool) {
     // Add the new tool class
     canvasWrapper.classList.add('tool-' + tool);
 
-    const is3DMode = State.get('is3DMode');
     ctrl3D.enabled = is3DMode;
-    ctrl3D.enableZoom = true;
 
     if (tool === 'orbit') {
         ctrl3D.enableRotate = true;

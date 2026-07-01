@@ -1,14 +1,14 @@
 [
     {
-        "name": "Happy Standing",
-        "file": "happy_standing.glb"
+        "name": "Happy Idle",
+        "file": "happy idle.glb"
     },
     {
-        "name": "Male Sitting Waiting",
-        "file": "male_sitting_waiting.glb"
+        "name": "Standing Briefcase Idle",
+        "file": "standing w_briefcase idle.glb"
     },
     {
-        "name": "Standing WB",
-        "file": "standing_wb.glb"
+        "name": "Texting While Standing",
+        "file": "texting while standing.glb"
     }
 ]

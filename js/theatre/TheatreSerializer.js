@@ -28,6 +28,8 @@ export function serializeState() {
                     h: m.userData.height,
                     p: m.position.toArray(),
                     rz: m.rotation.z,
+                    cSkin: m.userData.useCustomSkin || false,
+                    cColor: m.userData.customSkinColor || null,
                     wire: wire ? wire.userData.baseColor.getHex() : 0xffffff,
                     vis: m.userData.layerVisible,
                     lock: m.userData.locked

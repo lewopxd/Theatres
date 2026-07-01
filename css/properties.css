@@ -95,8 +95,9 @@
 }
 
 .prop-tab-btn {
-    padding: 6px 15px;
-    font-size: 11px;
+    flex: 1;
+    padding: 6px 2px;
+    font-size: 9.5px;
     color: var(--text-muted);
     background: transparent;
     border: none;
@@ -105,6 +106,10 @@
     font-weight: bold;
     text-transform: uppercase;
     transition: all 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
 }
 
 .prop-tab-btn:hover {
@@ -182,7 +187,7 @@
     background: transparent;
     color: var(--text-main);
     border: none;
-    border-bottom: 1px solid var(--border-color);
+    border-top: 1px solid var(--border-color);
     padding: 8px 15px;
     font-size: 11px;
     font-weight: bold;
@@ -190,6 +195,10 @@
     cursor: pointer;
     justify-content: space-between;
     align-items: center;
+}
+
+.prop-tab-content:first-of-type .accordion-header {
+    border-top: none;
 }
 
 .accordion-header:hover {
@@ -204,6 +213,12 @@
 
 .accordion-header.collapsed svg {
     transform: rotate(-90deg);
+}
+
+.accordion-body {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
 
 /* ============================================================

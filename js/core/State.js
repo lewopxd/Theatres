@@ -15,6 +15,7 @@ const state = {
     activeTool: 'orbit',
     activePlane: 'xz',
     isMoveClamped: true,
+    zoomToCursor: true,
 
     // Selection
     selectedMesh: null,
@@ -31,7 +32,12 @@ const state = {
         color: '#6a7b8e',
         size: 1,
         opacity: 0.3,
-        belowFloor: false
+        belowFloor: false,
+        showCenter: true,
+        centerColor: '#007acc',
+        centerShape: 'full',
+        centerStyle: 'solid',
+        centerOpacity: 0.5
     },
 
     // Z-index tracker for floating UI

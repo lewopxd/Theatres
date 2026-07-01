@@ -283,19 +283,32 @@ export function updateGeometry(paramKey, val) {
  * @param {THREE.Vector3} targetPos
  */
 function applyClamp(mesh, targetPos) {
-    if (!mesh.geometry) return;
-    mesh.geometry.computeBoundingBox();
-    const bbox = mesh.geometry.boundingBox;
+    let bboxMin = new THREE.Vector3();
+    let bboxMax = new THREE.Vector3();
+    
+    if (mesh.userData.isPersona) {
+        // Personas are animated and computing their bounds exactly per-frame is too expensive.
+        // We use a reasonable static approximation (0.5m x 1.7m x 0.5m).
+        bboxMin.set(-0.25, 0, -0.25);
+        bboxMax.set(0.25, 1.7, 0.25);
+    } else if (mesh.geometry) {
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox;
+        bboxMin.copy(box.min).multiply(mesh.scale);
+        bboxMax.copy(box.max).multiply(mesh.scale);
+    } else {
+        return;
+    }
     
     const { width, height, depth } = DEFAULT_STAGE;
     
     // Size offsets relative to origin
-    const minX = -width / 2 - bbox.min.x;
-    const maxX = width / 2 - bbox.max.x;
-    const minY = 0 - bbox.min.y;
-    const maxY = height - bbox.max.y;
-    const minZ = -depth / 2 - bbox.min.z;
-    const maxZ = depth / 2 - bbox.max.z;
+    const minX = -width / 2 - bboxMin.x;
+    const maxX = width / 2 - bboxMax.x;
+    const minY = 0 - bboxMin.y;
+    const maxY = height - bboxMax.y;
+    const minZ = -depth / 2 - bboxMin.z;
+    const maxZ = depth / 2 - bboxMax.z;
 
     targetPos.x = THREE.MathUtils.clamp(targetPos.x, minX, maxX);
     targetPos.y = THREE.MathUtils.clamp(targetPos.y, minY, maxY);

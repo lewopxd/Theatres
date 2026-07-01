@@ -33,6 +33,7 @@ export function initTopBar(gizmo) {
     initUndoRedo();
     init2DToolbar();
     initClampToggle();
+    initZoomToggle();
 }
 
 function initClampToggle() {
@@ -42,6 +43,17 @@ function initClampToggle() {
             const isClamped = !State.get('isMoveClamped');
             State.set('isMoveClamped', isClamped);
             this.classList.toggle('active', isClamped);
+        });
+    }
+}
+
+function initZoomToggle() {
+    const btnZoom = $('btn-zoom-toggle');
+    if (btnZoom) {
+        btnZoom.addEventListener('click', function () {
+            const isZoomCursor = !State.get('zoomToCursor');
+            State.set('zoomToCursor', isZoomCursor);
+            this.classList.toggle('active', isZoomCursor);
         });
     }
 }
@@ -179,31 +191,81 @@ function initBrightness() {
 function initGrid() {
     const gridConfig = State.getGridConfig();
     const gridModalHTML = `
-        <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-visible" checked> Mostrar Grid</label>
-        <label class="switch-wrapper" style="margin-top:5px;"><input type="checkbox" id="cfg-grid-below"> Grid bajo el piso</label>
-        <div class="form-group" style="margin-top:10px;">
-            <label>Tipo</label>
-            <select id="cfg-grid-type" class="form-control">
-                <option value="dots">Puntos</option>
-                <option value="lines" selected>Líneas</option>
-                <option value="dashed">Punteadas</option>
-                <option value="crosses">Cruces</option>
-            </select>
+        <style>
+            .grid-modal-section { border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 15px; }
+            .grid-modal-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+            .grid-modal-title { font-size: 11px; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; font-weight: bold; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px; }
+            .grid-modal-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+            @media (max-width: 480px) { .grid-modal-row { grid-template-columns: 1fr; } }
+        </style>
+        
+        <div class="grid-modal-section">
+            <div class="grid-modal-title"><i data-lucide="grid" style="width: 14px; height: 14px;"></i> Cuadrícula Principal</div>
+            <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+                <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-visible" checked> Mostrar Grid</label>
+                <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-below"> Bajo el piso</label>
+            </div>
+            <div class="grid-modal-row">
+                <div class="form-group">
+                    <label>Tipo de Trazado</label>
+                    <select id="cfg-grid-type" class="form-control">
+                        <option value="dots">Puntos</option>
+                        <option value="lines" selected>Líneas</option>
+                        <option value="dashed">Punteadas</option>
+                        <option value="crosses">Cruces</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Separación (m)</label><input type="number" id="cfg-grid-size" class="form-control" min="0.1" max="100" step="0.1" value="1"></div>
+                <div class="form-group"><label>Color Principal</label><input type="color" id="cfg-grid-color" class="form-control" value="#6a7b8e"></div>
+                <div class="form-group"><label>Opacidad</label><input type="range" id="cfg-grid-opacity" min="0.1" max="1" step="0.1" value="0.3" style="width: 100%;"></div>
+            </div>
         </div>
-        <div class="form-group"><label>Grosor/Tamaño</label><input type="range" id="cfg-grid-size" min="1" max="5" step="0.5" value="1"></div>
-        <div class="form-group"><label>Color</label><input type="color" id="cfg-grid-color" class="form-control" value="#6a7b8e"></div>
-        <div class="form-group"><label>Transparencia</label><input type="range" id="cfg-grid-opacity" min="0.1" max="1" step="0.1" value="0.3"></div>
-    `;
-    const gridModal = new ModalAPI('modal-grid', 'Config. Grid', gridModalHTML, 260);
 
-    const keyMap = { visible: 'visible', belowFloor: 'below', type: 'type', size: 'size', color: 'color', opacity: 'opacity' };
+        <div class="grid-modal-section">
+            <div class="grid-modal-title"><i data-lucide="crosshair" style="width: 14px; height: 14px;"></i> Ejes Centrales (0,0)</div>
+            <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+                <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-showCenter" checked> Habilitar Ejes</label>
+            </div>
+            <div class="grid-modal-row">
+                <div class="form-group">
+                    <label>Forma del Centro</label>
+                    <select id="cfg-grid-centerShape" class="form-control">
+                        <option value="full">Líneas completas</option>
+                        <option value="cross">Cruceta pequeña</option>
+                        <option value="corners">Esquinas</option>
+                        <option value="dot">Punto</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Estilo del Trazo</label>
+                    <select id="cfg-grid-centerStyle" class="form-control">
+                        <option value="solid">Continua</option>
+                        <option value="dashed">Segmentos</option>
+                        <option value="dots">Puntos</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Color de Ejes</label><input type="color" id="cfg-grid-centerColor" class="form-control" value="#007acc"></div>
+                <div class="form-group"><label>Opacidad de Ejes</label><input type="range" id="cfg-grid-centerOpacity" min="0.1" max="1" step="0.1" value="0.5" style="width: 100%;"></div>
+            </div>
+        </div>
+    `;
+    const gridModal = new ModalAPI('modal-grid', 'Configuración de Retícula', gridModalHTML, 340);
+
+    const keyMap = { 
+        visible: 'visible', belowFloor: 'below', type: 'type', size: 'size', color: 'color', opacity: 'opacity', 
+        showCenter: 'showCenter', centerShape: 'centerShape', centerStyle: 'centerStyle', centerColor: 'centerColor', centerOpacity: 'centerOpacity' 
+    };
     Object.entries(keyMap).forEach(([k, inputId]) => {
         const el = $(`cfg-grid-${inputId}`);
         if (el) {
+            // Setup initial values from state
+            if (el.type === 'checkbox') el.checked = gridConfig[k];
+            else el.value = gridConfig[k];
+
             el.addEventListener('change', e => {
-                gridConfig[k] = (k === 'visible' || k === 'belowFloor')
+                gridConfig[k] = (k === 'visible' || k === 'belowFloor' || k === 'showCenter')
                     ? e.target.checked
-                    : (k === 'type' || k === 'color' ? e.target.value : parseFloat(e.target.value));
+                    : (k === 'size' || k === 'opacity' || k === 'centerOpacity' ? parseFloat(e.target.value) : e.target.value);
                 generateGrid(gridConfig);
                 const slider = $('brightness-slider');
                 updateBrightness(slider ? parseFloat(slider.value) : 1);
@@ -211,7 +273,10 @@ function initGrid() {
         }
     });
 
-    $('btn-grid').addEventListener('click', () => gridModal.toggle());
+    $('btn-grid').addEventListener('click', () => {
+        gridModal.toggle();
+        lucide.createIcons(); // Refresh icons for the newly injected HTML
+    });
 }
 
 function initUndoRedo() {

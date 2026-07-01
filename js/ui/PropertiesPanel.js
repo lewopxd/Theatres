@@ -19,6 +19,8 @@ const propPanel = () => $('properties-panel');
 const propHeader = () => $('prop-header');
 const propContent = () => $('prop-content');
 
+let currentActiveTabIndex = 0;
+
 let animManifest = null;
 let posesManifest = null;
 
@@ -196,6 +198,20 @@ function createPropSelect(label, optionsObj, value, onChange, disabled = false) 
     return div;
 }
 
+function createPropCheckbox(label, value, onChange, disabled = false) {
+    const div = document.createElement('div');
+    div.className = 'prop-row checkbox-row';
+    const disAttr = disabled ? 'disabled' : '';
+    const checkedAttr = value ? 'checked' : '';
+    div.innerHTML = `<label>${label}</label><input type="checkbox" class="prop-checkbox" ${checkedAttr} ${disAttr} style="width:auto; margin:0 0 0 auto;">`;
+    div.querySelector('input').addEventListener('change', e => {
+        onChange(e.target.checked);
+        History.save();
+    });
+    return div;
+}
+
+
 function applyGroupProperty(groupId, property, value) {
     const groupLi = document.querySelector(`li[data-id="${groupId}"]`);
     if (!groupLi) return;
@@ -324,268 +340,255 @@ function renderMeshProperties(mesh, wireColorHex, li) {
     const data = mesh.userData;
     const isLocked = data.locked;
 
-    // Create Tabs Header
     const tabsHeader = document.createElement('div');
     tabsHeader.className = 'prop-tabs-header';
-    
-    const btnTab1 = document.createElement('button');
-    btnTab1.className = 'prop-tab-btn active';
-    btnTab1.textContent = 'General';
-    
-    const btnTab2 = document.createElement('button');
-    btnTab2.className = 'prop-tab-btn';
-    btnTab2.textContent = 'Ubicación';
-    
-    const btnTab3 = document.createElement('button');
-    btnTab3.className = 'prop-tab-btn';
-    btnTab3.textContent = 'Color';
-
-    const btnTab4 = document.createElement('button');
-    btnTab4.className = 'prop-tab-btn';
-    btnTab4.textContent = 'Material';
-    
-    tabsHeader.appendChild(btnTab1);
-    tabsHeader.appendChild(btnTab2);
-    tabsHeader.appendChild(btnTab3);
-    if (mesh.material && mesh.material.isMeshStandardMaterial) tabsHeader.appendChild(btnTab4);
     content.appendChild(tabsHeader);
 
-    // Tab 1: General (Name & Dimensions)
-    const tab1 = document.createElement('div');
-    tab1.className = 'prop-tab-content active';
-    
-    const accHead1 = document.createElement('button');
-    accHead1.className = 'accordion-header';
-    accHead1.innerHTML = `General <i data-lucide="chevron-down"></i>`;
-    tab1.appendChild(accHead1);
+    const tabDefs = [];
 
-    const accBody1 = document.createElement('div');
-    accBody1.className = 'accordion-body';
-    
-    const secName = document.createElement('div');
-    secName.className = 'prop-section';
-    secName.innerHTML = `<div class="prop-section-title">General</div>`;
-    const currentName = li ? li.querySelector('.tree-item').textContent.trim() : (data.name || 'Elemento');
-    secName.appendChild(createPropRow('Nombre', 'text', currentName, v => updateNodeName(li, v)));
-    accBody1.appendChild(secName);
-
-    if (data.editable) {
-        if (data.isPersona) {
-            const secAna = document.createElement('div');
-            secAna.className = 'prop-section';
-            secAna.innerHTML = `<div class="prop-section-title">Anatomía (Alometría)</div>`;
-            secAna.appendChild(createPropRow('Altura (m)', 'number', data.height.toFixed(2), v => {
-                PersonasEngine.updateAllometry(mesh, parseFloat(v));
+    // Tab: General
+    tabDefs.push({
+        title: 'General',
+        build: (body) => {
+            const secName = document.createElement('div');
+            secName.className = 'prop-section';
+            const currentName = li ? li.querySelector('.tree-item').textContent.trim() : (data.name || 'Elemento');
+            secName.appendChild(createPropRow('Nombre', 'text', currentName, v => updateNodeName(li, v)));
+            
+            const wire = Registry.findWireById(data.id);
+            secName.appendChild(createPropRow('Color Capa', 'color', wireColorHex, v => {
+                if (wire) wire.userData.baseColor.set(v);
+                const treeInput = document.querySelector(`.layer-picker[data-target="${data.id}"]`);
+                if (treeInput) treeInput.value = v;
                 syncSelectionEdges(mesh);
-            }, 1.0, 0.01, isLocked));
-            accBody1.appendChild(secAna);
+                const chevron = document.querySelector('.breadcrumb-chevron:last-of-type');
+                if (chevron) chevron.style.color = v;
+            }, undefined, undefined, isLocked));
+            
+            body.appendChild(secName);
 
-            const secAnim = document.createElement('div');
-            secAnim.className = 'prop-section';
-            secAnim.innerHTML = `<div class="prop-section-title">Animación / Pose</div>`;
-            if (animManifest) {
-                const animOptions = { '': 'Ninguna' };
-                animManifest.forEach(a => animOptions[a.file] = a.name);
-                secAnim.appendChild(createPropSelect('Animación', animOptions, data.currentAction || '', async v => {
-                    data.currentAction = v;
-                    if (v) {
-                        await PersonasEngine.loadAsset(mesh, `assets/modelos3d/personas/animaciones/${v}`, true);
-                    } else if (mesh.userData.mixer) {
-                        mesh.userData.mixer.stopAllAction();
+            if (data.editable && !data.isPersona) {
+                const secGeo = document.createElement('div');
+                secGeo.className = 'prop-section';
+                secGeo.innerHTML = `<div class="prop-section-title">Geometría</div>`;
+                const p = data.geoParams;
+                if (data.geoType === 'box') {
+                    secGeo.appendChild(createPropRow('Ancho (X)', 'number', p.w, v => updateGeometry('w', v), undefined, undefined, isLocked));
+                    if (Settings.get('visualZUp')) {
+                        secGeo.appendChild(createPropRow('Prof (Y)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
+                        secGeo.appendChild(createPropRow('Alto (Z)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
+                    } else {
+                        secGeo.appendChild(createPropRow('Alto (Y)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
+                        secGeo.appendChild(createPropRow('Prof (Z)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
                     }
-                    syncSelectionEdges(mesh);
-                }, isLocked));
-            }
-            if (posesManifest) {
-                const posesOptions = { '': 'Ninguna' };
-                posesManifest.forEach(p => posesOptions[p.file] = p.name);
-                secAnim.appendChild(createPropSelect('Pose', posesOptions, data.currentAction || '', async v => {
-                    data.currentAction = v;
-                    if (v) {
-                        await PersonasEngine.loadAsset(mesh, `assets/modelos3d/personas/poses/${v}`, false);
-                    } else if (mesh.userData.mixer) {
-                        mesh.userData.mixer.stopAllAction();
-                    }
-                    syncSelectionEdges(mesh);
-                }, isLocked));
-            }
-            accBody1.appendChild(secAnim);
-        } else {
-            const secGeo = document.createElement('div');
-            secGeo.className = 'prop-section';
-            secGeo.innerHTML = `<div class="prop-section-title">Dimensiones</div>`;
-            const p = data.geoParams;
-            if (data.geoType === 'box') {
-                secGeo.appendChild(createPropRow('Ancho (X)', 'number', p.w, v => updateGeometry('w', v), undefined, undefined, isLocked));
-                if (Settings.get('visualZUp')) {
-                    secGeo.appendChild(createPropRow('Prof (Y)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
-                    secGeo.appendChild(createPropRow('Alto (Z)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
-                } else {
-                    secGeo.appendChild(createPropRow('Alto (Y)', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
-                    secGeo.appendChild(createPropRow('Prof (Z)', 'number', p.d, v => updateGeometry('d', v), undefined, undefined, isLocked));
+                } else if (data.geoType === 'cylinder' || data.geoType === 'cone') {
+                    secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
+                    secGeo.appendChild(createPropRow('Alto', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
+                } else if (data.geoType === 'sphere') {
+                    secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
                 }
-            } else if (data.geoType === 'cylinder' || data.geoType === 'cone') {
-                secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
-                secGeo.appendChild(createPropRow('Alto', 'number', p.h, v => updateGeometry('h', v), undefined, undefined, isLocked));
-            } else if (data.geoType === 'sphere') {
-                secGeo.appendChild(createPropRow('Radio', 'number', p.r, v => updateGeometry('r', v), undefined, undefined, isLocked));
+                body.appendChild(secGeo);
             }
-            accBody1.appendChild(secGeo);
         }
-    }
-    tab1.appendChild(accBody1);
-    content.appendChild(tab1);
-
-    // Tab 2: Posición
-    const tab2 = document.createElement('div');
-    tab2.className = 'prop-tab-content';
-    
-    const accHead2 = document.createElement('button');
-    accHead2.className = 'accordion-header';
-    accHead2.innerHTML = `Ubicación <i data-lucide="chevron-down"></i>`;
-    tab2.appendChild(accHead2);
-
-    const accBody2 = document.createElement('div');
-    accBody2.className = 'accordion-body';
-    
-    const secPos = document.createElement('div');
-    secPos.className = 'prop-section';
-    secPos.innerHTML = `<div class="prop-section-title">Ubicación (m)</div>`;
-    secPos.appendChild(createPropRow('X', 'number', mesh.position.x.toFixed(2), v => updateMeshPos('x', parseFloat(v)), undefined, undefined, isLocked));
-    if (Settings.get('visualZUp')) {
-        secPos.appendChild(createPropRow('Y', 'number', mesh.position.z.toFixed(2), v => updateMeshPos('z', parseFloat(v)), undefined, undefined, isLocked));
-        secPos.appendChild(createPropRow('Z', 'number', mesh.position.y.toFixed(2), v => updateMeshPos('y', parseFloat(v)), undefined, undefined, isLocked));
-    } else {
-        secPos.appendChild(createPropRow('Y', 'number', mesh.position.y.toFixed(2), v => updateMeshPos('y', parseFloat(v)), undefined, undefined, isLocked));
-        secPos.appendChild(createPropRow('Z', 'number', mesh.position.z.toFixed(2), v => updateMeshPos('z', parseFloat(v)), undefined, undefined, isLocked));
-    }
-    accBody2.appendChild(secPos);
-    tab2.appendChild(accBody2);
-    content.appendChild(tab2);
-
-    // Tab 3: Color & Estilo
-    const tab3 = document.createElement('div');
-    tab3.className = 'prop-tab-content';
-    
-    const accHead3 = document.createElement('button');
-    accHead3.className = 'accordion-header';
-    accHead3.innerHTML = `Color <i data-lucide="chevron-down"></i>`;
-    tab3.appendChild(accHead3);
-
-    const accBody3 = document.createElement('div');
-    accBody3.className = 'accordion-body';
-    
-    const secColor = document.createElement('div');
-    secColor.className = 'prop-section';
-    secColor.innerHTML = `<div class="prop-section-title">Apariencia</div>`;
-    
-    const wire = Registry.findWireById(data.id);
-    secColor.appendChild(createPropRow('Color Capa', 'color', wireColorHex, v => {
-        if (wire) wire.userData.baseColor.set(v);
-        const treeInput = document.querySelector(`.layer-picker[data-target="${data.id}"]`);
-        if (treeInput) treeInput.value = v;
-        syncSelectionEdges(mesh);
-        const chevron = document.querySelector('.breadcrumb-chevron:last-of-type');
-        if (chevron) chevron.style.color = v;
-    }, undefined, undefined, isLocked));
-
-    if (mesh.material) {
-        secColor.appendChild(createPropRow('Relleno', 'color', `#${mesh.material.color.getHexString()}`, v => {
-            mesh.material.color.set(v); data.materialPreset = 'custom';
-            const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
-        }, undefined, undefined, isLocked));
-
-        secColor.appendChild(createPropRow('Opacidad', 'number', mesh.material.opacity, v => {
-            mesh.material.opacity = parseFloat(v); data.materialPreset = 'custom';
-            const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
-        }, 0, 0.1, isLocked));
-    }
-    
-    accBody3.appendChild(secColor);
-    tab3.appendChild(accBody3);
-    content.appendChild(tab3);
-
-    // Tab 4: Material
-    let tab4;
-    let accHead4, accBody4;
-    if (mesh.material && mesh.material.isMeshStandardMaterial) {
-        tab4 = document.createElement('div');
-        tab4.className = 'prop-tab-content';
-        
-        accHead4 = document.createElement('button');
-        accHead4.className = 'accordion-header';
-        accHead4.innerHTML = `Material <i data-lucide="chevron-down"></i>`;
-        tab4.appendChild(accHead4);
-
-        accBody4 = document.createElement('div');
-        accBody4.className = 'accordion-body';
-        
-        const secMat = document.createElement('div');
-        secMat.className = 'prop-section';
-        secMat.innerHTML = `<div class="prop-section-title">Físicas</div>`;
-
-        const presets = { 'custom': 'Personalizado', 'madera': 'Madera', 'metal': 'Metal', 'plastico': 'Plástico', 'cristal': 'Cristal' };
-        const presetRow = createPropSelect('Preset', presets, data.materialPreset || 'custom', v => {
-            data.materialPreset = v;
-            if (v !== 'custom') {
-                mesh.material.transparent = true;
-                if (v === 'madera') { mesh.material.color.set('#8b5a2b'); mesh.material.roughness = 0.9; mesh.material.metalness = 0.0; mesh.material.opacity = 1.0; }
-                if (v === 'metal') { mesh.material.color.set('#cccccc'); mesh.material.roughness = 0.2; mesh.material.metalness = 0.9; mesh.material.opacity = 1.0; }
-                if (v === 'plastico') { mesh.material.color.set('#007acc'); mesh.material.roughness = 0.4; mesh.material.metalness = 0.1; mesh.material.opacity = 1.0; }
-                if (v === 'cristal') { mesh.material.color.set('#e0ffff'); mesh.material.roughness = 0.05; mesh.material.metalness = 0.1; mesh.material.opacity = 0.4; }
-                renderMeshProperties(mesh, wireColorHex, li);
-            }
-        }, isLocked);
-        presetRow.querySelector('select').classList.add('material-preset-select');
-        secMat.appendChild(presetRow);
-
-        secMat.appendChild(createPropRow('Rugoso', 'number', mesh.material.roughness, v => {
-            mesh.material.roughness = parseFloat(v); data.materialPreset = 'custom';
-            const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
-        }, 0, 0.1, isLocked));
-        
-        secMat.appendChild(createPropRow('Metal', 'number', mesh.material.metalness, v => {
-            mesh.material.metalness = parseFloat(v); data.materialPreset = 'custom';
-            const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
-        }, 0, 0.1, isLocked));
-        
-        accBody4.appendChild(secMat);
-        tab4.appendChild(accBody4);
-        content.appendChild(tab4);
-    }
-
-    // Accordion interaction logic
-    const accordions = [
-        { head: accHead1, body: accBody1 },
-        { head: accHead2, body: accBody2 },
-        { head: accHead3, body: accBody3 }
-    ];
-    if (tab4) accordions.push({ head: accHead4, body: accBody4 });
-    
-    accordions.forEach(acc => {
-        acc.head.addEventListener('click', () => {
-            acc.head.classList.toggle('collapsed');
-            acc.body.classList.toggle('collapsed');
-        });
     });
 
-    // Tab switching logic
-    const tabs = [
-        { btn: btnTab1, content: tab1 },
-        { btn: btnTab2, content: tab2 },
-        { btn: btnTab3, content: tab3 }
-    ];
-    if (tab4) tabs.push({ btn: btnTab4, content: tab4 });
+    // Tab: Anatomía (Personas only)
+    if (data.editable && data.isPersona) {
+        tabDefs.push({
+            title: 'Anatomía',
+            build: (body) => {
+                const secAna = document.createElement('div');
+                secAna.className = 'prop-section';
+                secAna.innerHTML = `<div class="prop-section-title">Alometría</div>`;
+                secAna.appendChild(createPropRow('Altura (m)', 'number', data.height.toFixed(2), v => {
+                    PersonasEngine.updateAllometry(mesh, parseFloat(v));
+                    syncSelectionEdges(mesh);
+                }, 1.0, 0.01, isLocked));
+                body.appendChild(secAna);
+            }
+        });
+    }
 
-    tabs.forEach(t => {
-        t.btn.addEventListener('click', () => {
+    // Tab: Ubicación
+    tabDefs.push({
+        title: 'Ubicación',
+        build: (body) => {
+            const secPos = document.createElement('div');
+            secPos.className = 'prop-section';
+            secPos.appendChild(createPropRow('X', 'number', mesh.position.x.toFixed(2), v => updateMeshPos('x', parseFloat(v)), undefined, undefined, isLocked));
+            if (Settings.get('visualZUp')) {
+                secPos.appendChild(createPropRow('Y', 'number', mesh.position.z.toFixed(2), v => updateMeshPos('z', parseFloat(v)), undefined, undefined, isLocked));
+                secPos.appendChild(createPropRow('Z', 'number', mesh.position.y.toFixed(2), v => updateMeshPos('y', parseFloat(v)), undefined, undefined, isLocked));
+            } else {
+                secPos.appendChild(createPropRow('Y', 'number', mesh.position.y.toFixed(2), v => updateMeshPos('y', parseFloat(v)), undefined, undefined, isLocked));
+                secPos.appendChild(createPropRow('Z', 'number', mesh.position.z.toFixed(2), v => updateMeshPos('z', parseFloat(v)), undefined, undefined, isLocked));
+            }
+            body.appendChild(secPos);
+        }
+    });
+
+    // Tab: Poses (Personas only)
+    if (data.isPersona) {
+        tabDefs.push({
+            title: 'Poses',
+            build: (body) => {
+                const secAnim = document.createElement('div');
+                secAnim.className = 'prop-section';
+                if (animManifest) {
+                    const animOptions = { '': 'Ninguna' };
+                    animManifest.forEach(a => animOptions[a.file] = a.name);
+                    secAnim.appendChild(createPropSelect('Animación', animOptions, data.currentAction || '', async v => {
+                        data.currentAction = v;
+                        if (v) {
+                            await PersonasEngine.loadAsset(mesh, `assets/modelos3d/personas/animaciones/${v}`, true);
+                        } else {
+                            PersonasEngine.stopAnimation(mesh);
+                        }
+                        syncSelectionEdges(mesh);
+                    }, isLocked));
+                }
+                if (posesManifest) {
+                    const posesOptions = { '': 'Ninguna' };
+                    posesManifest.forEach(p => posesOptions[p.file] = p.name);
+                    secAnim.appendChild(createPropSelect('Pose', posesOptions, data.currentAction || '', async v => {
+                        data.currentAction = v;
+                        if (v) {
+                            await PersonasEngine.loadAsset(mesh, `assets/modelos3d/personas/poses/${v}`, false);
+                        } else {
+                            PersonasEngine.stopAnimation(mesh);
+                        }
+                        syncSelectionEdges(mesh);
+                    }, isLocked));
+                }
+                body.appendChild(secAnim);
+            }
+        });
+    }
+
+    // Tab: Apariencia / Color
+    tabDefs.push({
+        title: data.isPersona ? 'Apariencia' : 'Color',
+        build: (body) => {
+            const secColor = document.createElement('div');
+            secColor.className = 'prop-section';
+            
+            if (data.isPersona) {
+                const skinOptions = { 'original': 'Skin Original', 'solid': 'Color Sólido' };
+                const currentSkin = data.useCustomSkin ? 'solid' : 'original';
+                secColor.appendChild(createPropSelect('Piel', skinOptions, currentSkin, v => {
+                    data.useCustomSkin = (v === 'solid');
+                    if (data.useCustomSkin && !data.customSkinColor) data.customSkinColor = '#ffffff';
+                    PersonasEngine.updatePersonaMaterial(mesh);
+                    renderMeshProperties(mesh, wireColorHex, li);
+                }, isLocked));
+
+                if (data.useCustomSkin) {
+                    secColor.appendChild(createPropRow('Tono', 'color', data.customSkinColor, v => {
+                        data.customSkinColor = v;
+                        PersonasEngine.updatePersonaMaterial(mesh);
+                    }, undefined, undefined, isLocked));
+                }
+            } else if (mesh.material) {
+                secColor.appendChild(createPropRow('Relleno', 'color', `#${mesh.material.color.getHexString()}`, v => {
+                    mesh.material.color.set(v); data.materialPreset = 'custom';
+                    const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
+                }, undefined, undefined, isLocked));
+
+                secColor.appendChild(createPropRow('Opacidad', 'number', mesh.material.opacity, v => {
+                    mesh.material.opacity = parseFloat(v); data.materialPreset = 'custom';
+                    const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
+                }, 0, 0.1, isLocked));
+            }
+            body.appendChild(secColor);
+        }
+    });
+
+    // Tab: Material (Standard meshes only)
+    if (mesh.material && mesh.material.isMeshStandardMaterial && !data.isPersona) {
+        tabDefs.push({
+            title: 'Material',
+            build: (body) => {
+                const secMat = document.createElement('div');
+                secMat.className = 'prop-section';
+
+                const presets = { 'custom': 'Personalizado', 'madera': 'Madera', 'metal': 'Metal', 'plastico': 'Plástico', 'cristal': 'Cristal' };
+                const presetRow = createPropSelect('Preset', presets, data.materialPreset || 'custom', v => {
+                    data.materialPreset = v;
+                    if (v !== 'custom') {
+                        mesh.material.transparent = true;
+                        if (v === 'madera') { mesh.material.color.set('#8b5a2b'); mesh.material.roughness = 0.9; mesh.material.metalness = 0.0; mesh.material.opacity = 1.0; }
+                        if (v === 'metal') { mesh.material.color.set('#cccccc'); mesh.material.roughness = 0.2; mesh.material.metalness = 0.9; mesh.material.opacity = 1.0; }
+                        if (v === 'plastico') { mesh.material.color.set('#007acc'); mesh.material.roughness = 0.4; mesh.material.metalness = 0.1; mesh.material.opacity = 1.0; }
+                        if (v === 'cristal') { mesh.material.color.set('#e0ffff'); mesh.material.roughness = 0.05; mesh.material.metalness = 0.1; mesh.material.opacity = 0.4; }
+                        renderMeshProperties(mesh, wireColorHex, li);
+                    }
+                }, isLocked);
+                presetRow.querySelector('select').classList.add('material-preset-select');
+                secMat.appendChild(presetRow);
+
+                secMat.appendChild(createPropRow('Rugoso', 'number', mesh.material.roughness, v => {
+                    mesh.material.roughness = parseFloat(v); data.materialPreset = 'custom';
+                    const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
+                }, 0, 0.1, isLocked));
+                
+                secMat.appendChild(createPropRow('Metal', 'number', mesh.material.metalness, v => {
+                    mesh.material.metalness = parseFloat(v); data.materialPreset = 'custom';
+                    const sel = document.querySelector('.material-preset-select'); if (sel) sel.value = 'custom';
+                }, 0, 0.1, isLocked));
+                
+                body.appendChild(secMat);
+            }
+        });
+    }
+
+    // Build DOM from definitions
+    const tabs = [];
+    if (currentActiveTabIndex >= tabDefs.length) currentActiveTabIndex = 0;
+
+    tabDefs.forEach((def, index) => {
+        const isActive = index === currentActiveTabIndex;
+
+        // Button
+        const btn = document.createElement('button');
+        btn.className = `prop-tab-btn ${isActive ? 'active' : ''}`;
+        btn.textContent = def.title;
+        tabsHeader.appendChild(btn);
+
+        // Content
+        const tabContent = document.createElement('div');
+        tabContent.className = `prop-tab-content ${isActive ? 'active' : ''}`;
+        
+        const accHead = document.createElement('button');
+        accHead.className = 'accordion-header';
+        accHead.innerHTML = `${def.title} <i data-lucide="chevron-down"></i>`;
+        tabContent.appendChild(accHead);
+
+        const accBody = document.createElement('div');
+        accBody.className = 'accordion-body';
+        
+        def.build(accBody);
+
+        tabContent.appendChild(accBody);
+        content.appendChild(tabContent);
+
+        // Interaction logic
+        accHead.addEventListener('click', () => {
+            accHead.classList.toggle('collapsed');
+            accBody.classList.toggle('collapsed');
+        });
+
+        // Tab switching logic
+        btn.addEventListener('click', () => {
+            currentActiveTabIndex = index;
             tabs.forEach(x => {
                 x.btn.classList.remove('active');
                 x.content.classList.remove('active');
             });
-            t.btn.classList.add('active');
-            t.content.classList.add('active');
+            btn.classList.add('active');
+            tabContent.classList.add('active');
         });
+
+        tabs.push({ btn, content: tabContent });
     });
 
     createIcons({ root: content });

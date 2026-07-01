@@ -7,6 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { renderer } from './SceneManager.js';
 import { FRUSTUM_SIZE } from '../utils/constants.js';
 import { State } from '../core/State.js';
+import { EventBus } from '../core/EventBus.js';
 
 export const userInteractedWithMode = {
     top: false,
@@ -64,6 +65,18 @@ ctrlIso.enableRotate = false;
 
 /** All controls array for bulk config */
 export const allControls = [ctrl3D, ctrlOrthoMain, ctrlTop, ctrlBottom, ctrlLeft, ctrlRight, ctrlFront, ctrlIso];
+allControls.forEach(c => {
+    c.enableZoom = !State.get('zoomToCursor');
+    c.zoomSpeed = 3.5; // Aumentado para mayor fluidez
+});
+
+EventBus.on('state:zoomToCursor', (e) => {
+    const useCADZoom = e.value;
+    allControls.forEach(c => {
+        c.enableZoom = !useCADZoom;
+        c.zoomSpeed = 3.5;
+    });
+});
 
 /** All ortho controls for sync */
 export const orthoControls = [ctrlOrthoMain, ctrlTop, ctrlBottom, ctrlLeft, ctrlRight, ctrlFront, ctrlIso];
@@ -150,20 +163,8 @@ export function autoFitTheatres(container, isSplit, force = false) {
         const frustum = getRequiredVerticalSize(mode, stageW, stageD, stageH, aspect);
         
         ctrl.object.userData.baseFrustumSize = frustum;
-        ctrl.target.set(0, centerY, 0);
+        setupCamPos(ctrl.object, mode, ctrl);
         ctrl.object.zoom = 1;
-        
-        if (ctrl === ctrlTop) ctrl.object.position.set(0, 20, 0);
-        else if (ctrl === ctrlLeft) ctrl.object.position.set(-20, centerY, 0);
-        else if (ctrl === ctrlRight) ctrl.object.position.set(20, centerY, 0);
-        else if (ctrl === ctrlFront) ctrl.object.position.set(0, centerY, 20);
-        else if (ctrl === ctrlIso) ctrl.object.position.set(15, 15 + centerY, 15);
-        else if (ctrl === ctrlBottom) ctrl.object.position.set(0, -20, 0);
-        
-        ctrl.object.up.set(0, 1, 0);
-        if (ctrl === ctrlTop) ctrl.object.up.set(0, 0, -1);
-        else if (ctrl === ctrlBottom) ctrl.object.up.set(0, 0, 1);
-
         ctrl.update();
     });
     
@@ -243,6 +244,35 @@ export function initOrthoSync(getIs3DMode) {
     });
 }
 
+// Enable Damping globally for all controls
+allControls.forEach(c => {
+    c.enableDamping = true;
+    c.dampingFactor = 0.05;
+    c.enablePan = true;
+    c.enableRotate = false;
+    c.enableZoom = !State.get('zoomToCursor');
+    c.zoomSpeed = 3.5;
+    
+    // Disable rotate based on camera type
+    if (c.object.isOrthographicCamera) {
+        c.enableRotate = false;
+    }
+});
+
+ctrl3D.enableRotate = true;
+
+// Zoom logic is initialized externally via initZoom()
+const getIs3DMode = () => State.get('is3DMode');
+initOrthoSync(getIs3DMode);
+
+// Window Resize logic
+window.addEventListener('resize', () => {
+    const container = document.getElementById('canvas-wrapper');
+    if (container) {
+        resizeCameras(container, getIs3DMode(), State.get('isSplit'));
+    }
+});
+
 // Initialize default positions
 setupCamPos(camTop, 'top', ctrlTop);
 setupCamPos(camBottom, 'bottom', ctrlBottom);
@@ -289,3 +319,118 @@ export function updateActiveOrthoControl(e, container, isSplit) {
         }
     }
 }
+
+// ============================================================
+// ZOOM TO CURSOR LOGIC
+// ============================================================
+renderer.domElement.addEventListener('wheel', (e) => {
+    if (!State.get('zoomToCursor')) return;
+    
+    e.preventDefault();
+
+    const is3DMode = State.get('is3DMode');
+    const isSplit = State.get('isSplit');
+
+    let activeCtrl = null;
+    let activeCam = null;
+    let ndcX = 0;
+    let ndcY = 0;
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const w = rect.width;
+    const h = rect.height;
+
+    if (is3DMode) {
+        activeCtrl = ctrl3D;
+        activeCam = cam3D;
+        ndcX = (x / w) * 2 - 1;
+        ndcY = -(y / h) * 2 + 1;
+    } else if (!isSplit) {
+        activeCtrl = ctrlOrthoMain;
+        activeCam = camOrthoMain;
+        ndcX = (x / w) * 2 - 1;
+        ndcY = -(y / h) * 2 + 1;
+    } else {
+        const nx = x / w;
+        const ny = 1.0 - (y / h);
+        for (const v of splitViews) {
+            if (nx >= v.left && nx <= v.left + v.width &&
+                ny >= v.bottom && ny <= v.bottom + v.height) {
+                activeCtrl = v.ctrl;
+                activeCam = v.cam;
+                // Calculate local NDC for the quadrant
+                const localX = (nx - v.left) / v.width;
+                const localY = (ny - v.bottom) / v.height;
+                ndcX = localX * 2 - 1;
+                ndcY = localY * 2 - 1;
+                break;
+            }
+        }
+    }
+
+    if (!activeCtrl || !activeCam) return;
+
+    const ndc = new THREE.Vector2(ndcX, ndcY);
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, activeCam);
+
+    const target = activeCtrl.target;
+    // Plane passing through the target and facing the camera
+    const normal = new THREE.Vector3(0, 0, -1).applyQuaternion(activeCam.quaternion);
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, target);
+
+    const pOld = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, pOld);
+
+    // Apply Zoom
+    const zoomSpeed = 1.06;
+    const zoomDelta = e.deltaY > 0 ? (1 / zoomSpeed) : zoomSpeed;
+
+    if (activeCam.isOrthographicCamera) {
+        activeCam.zoom *= zoomDelta;
+        activeCam.zoom = THREE.MathUtils.clamp(activeCam.zoom, 0.01, 1000);
+        activeCam.updateProjectionMatrix();
+    } else {
+        const offset = new THREE.Vector3().copy(activeCam.position).sub(target);
+        offset.divideScalar(zoomDelta);
+        if (offset.length() > 0.1 && offset.length() < 2000) {
+            activeCam.position.copy(target).add(offset);
+        }
+    }
+    
+    activeCam.updateMatrixWorld();
+
+    raycaster.setFromCamera(ndc, activeCam);
+    const pNew = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, pNew);
+
+    const pan = new THREE.Vector3().copy(pOld).sub(pNew);
+    
+    // Disable syncing while programmatic zooming
+    isProgrammaticMove = true;
+    activeCam.position.add(pan);
+    activeCtrl.target.add(pan);
+    activeCtrl.update();
+    isProgrammaticMove = false;
+    
+    // Manually trigger sync for ortho views if not in 3D
+    if (!is3DMode) {
+        const currentMode = isSplit ? 'split' : State.get('active2DMode');
+        userInteractedWithMode[currentMode] = true;
+        
+        orthoControls.forEach(c => {
+            if (c !== activeCtrl) {
+                const offset = new THREE.Vector3().copy(c.object.position).sub(c.target);
+                c.target.copy(activeCtrl.target);
+                c.object.position.copy(c.target).add(offset);
+                
+                c.object.zoom = activeCam.zoom;
+                c.object.updateProjectionMatrix();
+                c.update();
+            }
+        });
+    }
+
+}, { passive: false });

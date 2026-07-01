@@ -97,9 +97,10 @@
                         title="Mover en plano horizontal XZ">XZ</button>
                     <button class="icon-btn sm btn-plane" data-plane="xy" title="Mover en plano frontal XY">XY</button>
                     <button class="icon-btn sm btn-plane" data-plane="yz" title="Mover en plano lateral YZ">YZ</button>
-                    <div class="tb-sep" style="margin: 0 4px; display: inline-block; vertical-align: middle;"></div>
-                    <button id="btn-clamp" class="icon-btn sm btn-plane active" title="Restringir al área del teatro"><i data-lucide="shrink"></i></button>
                 </div>
+                <div class="tb-sep" style="margin: 0 4px; display: inline-block; vertical-align: middle;"></div>
+                <button id="btn-zoom-toggle" class="icon-btn sm active" title="Zoom hacia el cursor (CAD)"><i data-lucide="mouse-pointer-click"></i></button>
+                <button id="btn-clamp" class="icon-btn sm active" title="Restringir al área del teatro"><i data-lucide="shrink"></i></button>
                 <button id="btn-orbit" class="icon-btn active" title="Órbita / Navegar (E)"><i
                         data-lucide="rotate-3d"></i></button>
                 <button id="btn-pan" class="icon-btn" title="Encuadre / Pan (H)"><i data-lucide="hand"></i></button>
@@ -152,6 +153,7 @@
                 <div class="split-badge bl"><i data-lucide="arrow-right-to-line"></i> Lateral</div>
                 <div class="split-badge br"><i data-lucide="box-select"></i> Ortogonal</div>
                 <div class="single-badge tl" id="single-badge"><i data-lucide="box"></i> <span>Perspectiva (3D)</span></div>
+                
                 <div id="gizmo-container" title="Arrastrar Gizmo"></div>
             </div>
 

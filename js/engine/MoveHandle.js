@@ -81,25 +81,8 @@ function getHandlePosition3D(mesh) {
 }
 
 function getHandlePosition2D(mesh) {
-    const { center, size } = getObjectBounds(mesh);
-    const pos = center.clone();
-    const mode = State.get('active2DMode');
-    
-    // Small offset so the handle clears the wireframe lines
-    const OFFSET = 0.08;
-    
-    // Offset PAST the surface facing the camera so the handle
-    // floats visibly above the wireframe in the current view
-    switch (mode) {
-        case 'top':    pos.y += size.y / 2 + OFFSET; break;
-        case 'bottom': pos.y -= size.y / 2 + OFFSET; break;
-        case 'left':   pos.x -= size.x / 2 + OFFSET; break;
-        case 'right':  pos.x += size.x / 2 + OFFSET; break;
-        case 'front':  pos.z += size.z / 2 + OFFSET; break;
-        case 'back':   pos.z -= size.z / 2 + OFFSET; break;
-    }
-    
-    return pos;
+    const { center } = getObjectBounds(mesh);
+    return center;
 }
 
 // ---- Public API ----
@@ -109,7 +92,7 @@ export const MoveHandle = {
      * @param {THREE.Mesh|null} mesh
      */
     show(mesh) {
-        if (!mesh || !mesh.userData.editable || mesh.userData.locked) {
+        if (!mesh || !mesh.userData.editable || mesh.userData.locked || State.get('is3DMode')) {
             this.hide();
             return;
         }

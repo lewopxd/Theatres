@@ -124,32 +124,22 @@ export function syncSelectionEdges(mesh) {
                 opacity: 1.0
             });
 
-            const mixer = mesh.userData.mixer;
-            const bones = mesh.userData.bones;
-            mesh.userData.mixer = null;
-            mesh.userData.bones = null;
-            let personaWireMesh, personaWireHidden;
-            try {
-                personaWireMesh = SkeletonUtils.clone(mesh);
-                personaWireHidden = SkeletonUtils.clone(mesh);
-            } finally {
-                mesh.userData.mixer = mixer;
-                mesh.userData.bones = bones;
-            }
+            const personaWireMesh = new THREE.Group();
+            const personaWireHidden = new THREE.Group();
 
-            personaWireMesh.traverse(child => {
-                if (child.isMesh) {
-                    child.material = wireMat;
-                }
-            });
-            personaWireMesh.position.set(0, 0, 0);
-            personaWireMesh.rotation.set(0, 0, 0);
-            personaWireMesh.scale.copy(mesh.scale);
-            selectionPersonaWire.add(personaWireMesh);
+            mesh.traverse(child => {
+                if (child.isSkinnedMesh) {
+                    const wire = new THREE.SkinnedMesh(child.geometry, wireMat);
+                    wire.bindMode = child.bindMode;
+                    wire.bindMatrix.copy(child.bindMatrix);
+                    wire.skeleton = child.skeleton;
+                    // Position relative to the group
+                    wire.position.copy(child.position);
+                    wire.rotation.copy(child.rotation);
+                    wire.scale.copy(child.scale);
+                    personaWireMesh.add(wire);
 
-            personaWireHidden.traverse(child => {
-                if (child.isMesh) {
-                    child.material = new THREE.MeshBasicMaterial({
+                    const hiddenMat = new THREE.MeshBasicMaterial({
                         color: color.clone().multiplyScalar(0.2),
                         wireframe: true,
                         transparent: true,
@@ -161,11 +151,33 @@ export function syncSelectionEdges(mesh) {
                         polygonOffsetFactor: -1,
                         polygonOffsetUnits: -1
                     });
+                    const hidden = new THREE.SkinnedMesh(child.geometry, hiddenMat);
+                    hidden.bindMode = child.bindMode;
+                    hidden.bindMatrix.copy(child.bindMatrix);
+                    hidden.skeleton = child.skeleton;
+                    hidden.position.copy(child.position);
+                    hidden.rotation.copy(child.rotation);
+                    hidden.scale.copy(child.scale);
+                    personaWireHidden.add(hidden);
+                } else if (child.isMesh) {
+                    const wire = new THREE.Mesh(child.geometry, wireMat);
+                    wire.position.copy(child.position);
+                    wire.rotation.copy(child.rotation);
+                    wire.scale.copy(child.scale);
+                    personaWireMesh.add(wire);
                 }
             });
+
+            // The group itself shouldn't have transforms since selectionGroup will follow the mesh's transforms
+            personaWireMesh.position.set(0, 0, 0);
+            personaWireMesh.rotation.set(0, 0, 0);
+            personaWireMesh.scale.set(1, 1, 1);
+            
             personaWireHidden.position.set(0, 0, 0);
             personaWireHidden.rotation.set(0, 0, 0);
-            personaWireHidden.scale.copy(mesh.scale);
+            personaWireHidden.scale.set(1, 1, 1);
+
+            selectionPersonaWire.add(personaWireMesh);
             selectionPersonaWire.add(personaWireHidden);
         } else if (mesh.geometry) {
             selectionEdges.geometry = (mesh.userData.geoType === 'box') ? new THREE.WireframeGeometry(mesh.geometry) : new THREE.EdgesGeometry(mesh.geometry);

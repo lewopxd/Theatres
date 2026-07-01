@@ -1,14 +1,18 @@
 [
     {
-        "name": "Female Sit",
-        "file": "female_sit.glb"
+        "name": "Female Sitting Pose",
+        "file": "female sitting pose.glb"
     },
     {
-        "name": "Male Sit",
-        "file": "male_sit.glb"
+        "name": "Female Standing Pose",
+        "file": "female standing pose.glb"
     },
     {
-        "name": "Male Sit 2",
-        "file": "male_sit_2.glb"
+        "name": "Male Sitting Pose",
+        "file": "male sitting pose.glb"
+    },
+    {
+        "name": "Male Standing Pose",
+        "file": "male standing pose.glb"
     }
 ]

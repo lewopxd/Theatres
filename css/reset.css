@@ -7,6 +7,13 @@ body {
     background-color: var(--bg-ide);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     color: var(--text-main);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
 }
 
 /* Scrollbar — Webkit */

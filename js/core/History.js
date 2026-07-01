@@ -67,6 +67,9 @@ export const History = {
                     m = await PersonasEngine.createPersona(sm.pT, sm.name);
                     m.userData.id = sm.id;
                     m.userData.group = sm.g;
+                    m.userData.useCustomSkin = sm.cSkin;
+                    m.userData.customSkinColor = sm.cColor;
+                    PersonasEngine.updatePersonaMaterial(m);
                     
                     const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 1.7, 0.5));
                     const wireMat = new THREE.LineBasicMaterial({ color: sm.wire });
@@ -107,6 +110,9 @@ export const History = {
                 if (sm.isP) {
                     m.userData.layerVisible = sm.vis;
                     m.userData.locked = sm.lock;
+                    m.userData.useCustomSkin = sm.cSkin;
+                    m.userData.customSkinColor = sm.cColor;
+                    PersonasEngine.updatePersonaMaterial(m);
                     PersonasEngine.updateAllometry(m, sm.h || 1.7);
                     const w = Registry.findWireById(sm.id);
                     if (w) {

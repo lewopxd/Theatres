@@ -123,7 +123,6 @@
     cursor: grab;
 }
 
-#canvas-wrapper.tool-pan:active {
     cursor: grabbing;
 }
 

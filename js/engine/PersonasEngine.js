@@ -32,6 +32,7 @@ const EXPECTED_BONES = [
 
 // Registro de mixers de animaciones
 const mixers = new Map();
+const activeActions = new Map();
 
 function uniform(f) { return { x: f, y: f, z: f }; }
 
@@ -48,9 +49,50 @@ function applyBoneWorld(bones, boneName, desiredWorld, inheritedFromParent) {
 
 export const PersonasEngine = {
     
+    /**
+     * Llama esto en el loop principal
+     * @param {number} delta 
+     */
     update(delta) {
         if (!State.get('is3DMode')) return; // Pausar animaciones en modo 2D
-        mixers.forEach(mixer => mixer.update(delta));
+        const isDragging = State.get('isDragging');
+        mixers.forEach(mixer => {
+            if (isDragging) return;
+            mixer.update(delta);
+        });
+    },
+
+    updatePersonaMaterial(mesh) {
+        if (!mesh || !mesh.userData.isPersona) return;
+        const data = mesh.userData;
+        
+        mesh.traverse(child => {
+            if (child.isSkinnedMesh || child.isMesh) {
+                // Do not override if it's the selection wireframe
+                if (child.material && child.material.wireframe) return;
+
+                if (!child.userData.originalMaterial) {
+                    child.userData.originalMaterial = child.material;
+                }
+                
+                if (data.useCustomSkin) {
+                    if (!child.userData.customMaterial) {
+                        child.userData.customMaterial = new THREE.MeshStandardMaterial({
+                            color: new THREE.Color(data.customSkinColor || '#ffffff'),
+                            roughness: 0.7,
+                            metalness: 0.1
+                        });
+                    } else {
+                        child.userData.customMaterial.color.set(data.customSkinColor || '#ffffff');
+                    }
+                    child.material = child.userData.customMaterial;
+                } else {
+                    if (child.userData.originalMaterial) {
+                        child.material = child.userData.originalMaterial;
+                    }
+                }
+            }
+        });
     },
 
     async createPersona(type, name) {
@@ -72,7 +114,6 @@ export const PersonasEngine = {
                     layerVisible: true,
                     baseScale: 1.0,
                     bones: {},
-                    mixer: new THREE.AnimationMixer(model),
                     currentAction: null,
                     boundingBox: new THREE.Box3()
                 };
@@ -99,7 +140,8 @@ export const PersonasEngine = {
                 this.updateAllometry(model, 1.70);
                 
                 // Registrar mixer
-                mixers.set(model.uuid, model.userData.mixer);
+                const mixer = new THREE.AnimationMixer(model);
+                mixers.set(model.uuid, mixer);
                 
                 resolve(model);
             }, undefined, (err) => {
@@ -124,7 +166,6 @@ export const PersonasEngine = {
                     layerVisible: true,
                     baseScale: 1.0,
                     bones: {},
-                    mixer: null
                 };
                 
                 resolve(group);
@@ -202,15 +243,35 @@ export const PersonasEngine = {
     },
 
     async loadAsset(model, url, isAnimation) {
-        if (!model.userData.mixer) return;
+        if (!mixers.has(model.uuid)) return;
         
         return new Promise((resolve, reject) => {
-            loader.load(url, (gltf) => {
+            // Cache buster temporal para desarrollo
+            const bypassUrl = `${url}?t=${Date.now()}`;
+            loader.load(bypassUrl, (gltf) => {
                 if (gltf.animations && gltf.animations.length > 0) {
-                    const mixer = model.userData.mixer;
-                    mixer.stopAllAction();
-                    const action = mixer.clipAction(gltf.animations[0]);
-                    action.play();
+                    const clip = gltf.animations[0];
+                    clip.name = url + '_' + Date.now(); // FORZAR nombre único para evitar que el mixer reutilice la acción vieja
+                    const mixer = mixers.get(model.uuid);
+                    
+                    const oldAction = activeActions.get(model.uuid);
+                    const newAction = mixer.clipAction(clip);
+                    
+                    if (oldAction && oldAction !== newAction) {
+                        newAction.reset();
+                        newAction.setEffectiveTimeScale(1);
+                        newAction.setEffectiveWeight(1);
+                        newAction.play();
+                        newAction.crossFadeFrom(oldAction, 0.3, true);
+                    } else {
+                        if (oldAction) oldAction.stop();
+                        newAction.reset();
+                        newAction.setEffectiveTimeScale(1);
+                        newAction.play();
+                        newAction.fadeIn(0.3); // Interpolamos suavemente
+                    }
+                    
+                    activeActions.set(model.uuid, newAction);
                     
                     if (!isAnimation) {
                         // Es una pose, lo pausamos en el frame 0 o algo así
@@ -230,7 +291,7 @@ export const PersonasEngine = {
 
     async fetchManifest(type) {
         try {
-            const res = await fetch(`assets/modelos3d/personas/${type}/index.json`);
+            const res = await fetch(`assets/modelos3d/personas/${type}/index.json?t=${Date.now()}`);
             if (res.ok) {
                 return await res.json();
             }
@@ -243,6 +304,23 @@ export const PersonasEngine = {
     removePersona(model) {
         if (mixers.has(model.uuid)) {
             mixers.delete(model.uuid);
+        }
+        if (activeActions.has(model.uuid)) {
+            activeActions.delete(model.uuid);
+        }
+    },
+
+    stopAnimation(model) {
+        if (mixers.has(model.uuid)) {
+            const mixer = mixers.get(model.uuid);
+            const oldAction = activeActions.get(model.uuid);
+            if (oldAction) {
+                oldAction.fadeOut(0.3);
+            }
+            setTimeout(() => {
+                mixer.stopAllAction();
+                activeActions.delete(model.uuid);
+            }, 300);
         }
     },
 
