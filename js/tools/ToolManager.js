@@ -8,6 +8,8 @@ import { EventBus } from '../core/EventBus.js';
 import { AXIS_LABELS, TOOL_KEYS } from '../utils/constants.js';
 import { $ } from '../utils/dom.js';
 import { ctrl3D, allControls } from '../engine/CameraManager.js';
+import { DeleteEngine } from '../engine/DeleteEngine.js';
+import { DuplicateEngine } from '../engine/DuplicateEngine.js';
 
 /**
  * Set the active tool and update UI/controls accordingly
@@ -18,14 +20,15 @@ export function setActiveTool(tool) {
 
     const btnSelect = $('btn-select');
     const btnMove = $('btn-move');
+    const btnRotate = $('btn-rotate');
     const btnOrbit = $('btn-orbit');
     const btnPan = $('btn-pan');
     const movePlanes = $('move-planes');
     const canvasWrapper = $('canvas-wrapper');
 
-
     btnSelect.classList.toggle('active', tool === 'select');
     btnMove.classList.toggle('active', tool === 'move');
+    btnRotate.classList.toggle('active', tool === 'rotate');
     btnOrbit.classList.toggle('active', tool === 'orbit');
     btnPan.classList.toggle('active', tool === 'pan');
 
@@ -80,7 +83,19 @@ export function setActiveTool(tool) {
  */
 export function initToolShortcuts() {
     window.addEventListener('keydown', e => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+        
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            DeleteEngine.execute();
+            return;
+        }
+
+        if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) {
+            e.preventDefault();
+            DuplicateEngine.execute();
+            return;
+        }
+
         const tool = TOOL_KEYS[e.key];
         if (tool) setActiveTool(tool);
         if (e.key === 'Escape') EventBus.emit('selection:clear');
@@ -110,6 +125,7 @@ export function initPlaneButtons() {
 export function initToolButtons() {
     $('btn-select').addEventListener('click', () => setActiveTool('select'));
     $('btn-move').addEventListener('click', () => setActiveTool('move'));
+    $('btn-rotate').addEventListener('click', () => setActiveTool('rotate'));
     $('btn-orbit').addEventListener('click', () => setActiveTool('orbit'));
     $('btn-pan').addEventListener('click', () => setActiveTool('pan'));
 }

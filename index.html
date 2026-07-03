@@ -59,7 +59,7 @@
     <!-- ============================================================
          APP SHELL — oculto hasta que el loader termina
     ============================================================ -->
-    <div id="app-shell">
+    <div id="app-shell" class="app-loading">
         <div id="app-title">TEATRO TECAL 3D — PLANO ESTRUCTURAL</div>
 
         <div id="top-bar">
@@ -92,6 +92,7 @@
                 <button id="btn-select" class="icon-btn" title="Seleccionar (Q)"><i
                         data-lucide="mouse-pointer-2"></i></button>
                 <button id="btn-move" class="icon-btn" title="Mover (W)"><i data-lucide="move"></i></button>
+                <button id="btn-rotate" class="icon-btn" title="Rotar (R)"><i data-lucide="rotate-cw"></i></button>
                 <div id="move-planes">
                     <button class="icon-btn sm btn-plane active" data-plane="xz"
                         title="Mover en plano horizontal XZ">XZ</button>
@@ -155,6 +156,11 @@
                 <div class="single-badge tl" id="single-badge"><i data-lucide="box"></i> <span>Perspectiva (3D)</span></div>
                 
                 <div id="gizmo-container" title="Arrastrar Gizmo"></div>
+                
+                <!-- Loading Overlay for 3D assets -->
+                <div id="canvas-loading-overlay" style="display: none;">
+                    <div class="cube-spinner"></div>
+                </div>
             </div>
 
             <div id="sidebar">

@@ -26,7 +26,11 @@ export function serializeState() {
                     pT: m.userData.personaType,
                     name: m.userData.name,
                     h: m.userData.height,
-                    p: m.position.toArray(),
+                    p: [
+                        m.position.x, 
+                        (!m.userData.spawnComplete && !m.userData.hasBeenMoved) ? 0 : m.position.y,
+                        m.position.z
+                    ],
                     rz: m.rotation.z,
                     cSkin: m.userData.useCustomSkin || false,
                     cColor: m.userData.customSkinColor || null,

@@ -49,29 +49,40 @@ scene.add(handleGroup);
 // Track hover state
 let _isHovered = false;
 
-function getObjectBounds(mesh) {
+export function getObjectBounds(mesh) {
     mesh.updateMatrixWorld(true);
     const center = new THREE.Vector3();
     const size = new THREE.Vector3();
 
-    if (mesh.userData.isPersona) {
-        const localBox = PersonasEngine.computeSkinnedBoundingBox(mesh);
-        localBox.getCenter(center);
-        center.applyMatrix4(mesh.matrixWorld);
-        localBox.getSize(size);
-        size.multiply(mesh.scale);
-    } else if (mesh.geometry) {
-        if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-        const box = mesh.geometry.boundingBox;
-        box.getCenter(center);
-        center.applyMatrix4(mesh.matrixWorld);
-        box.getSize(size);
-        size.multiply(mesh.scale);
-    } else {
-        const box = new THREE.Box3().setFromObject(mesh);
-        box.getCenter(center);
-        box.getSize(size);
+    if (!mesh.userData._localCenter) {
+        mesh.userData._localCenter = new THREE.Vector3();
+        mesh.userData._localSize = new THREE.Vector3();
+        
+        if (mesh.userData.isPersona) {
+            const localBox = PersonasEngine.computeSkinnedBoundingBox(mesh);
+            localBox.getCenter(mesh.userData._localCenter);
+            localBox.getSize(mesh.userData._localSize);
+        } else if (mesh.geometry) {
+            if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+            const box = mesh.geometry.boundingBox;
+            box.getCenter(mesh.userData._localCenter);
+            box.getSize(mesh.userData._localSize);
+        } else {
+            const oldRot = mesh.rotation.clone();
+            mesh.rotation.set(0, 0, 0);
+            mesh.updateMatrixWorld(true);
+            const box = new THREE.Box3().setFromObject(mesh);
+            box.getCenter(mesh.userData._localCenter);
+            mesh.worldToLocal(mesh.userData._localCenter);
+            box.getSize(mesh.userData._localSize);
+            mesh.rotation.copy(oldRot);
+            mesh.updateMatrixWorld(true);
+        }
     }
+    
+    center.copy(mesh.userData._localCenter).applyMatrix4(mesh.matrixWorld);
+    size.copy(mesh.userData._localSize).multiply(mesh.scale);
+    
     return { center, size };
 }
 

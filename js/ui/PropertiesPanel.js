@@ -14,6 +14,8 @@ import { createIcons, $ } from '../utils/dom.js';
 import { Settings } from '../core/Settings.js';
 import { applyLayerVisibility } from '../engine/SceneManager.js';
 import { PersonasEngine } from '../engine/PersonasEngine.js';
+import { DeleteEngine } from '../engine/DeleteEngine.js';
+import { DuplicateEngine } from '../engine/DuplicateEngine.js';
 
 const propPanel = () => $('properties-panel');
 const propHeader = () => $('prop-header');
@@ -275,7 +277,16 @@ function renderGroupProperties(li, groupColorHex) {
     // Group general section
     const secGeneral = document.createElement('div');
     secGeneral.className = 'prop-section';
-    secGeneral.innerHTML = `<div class="prop-section-title">Grupo</div>`;
+    secGeneral.innerHTML = `
+        <div class="prop-section-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Grupo</span>
+            <div class="quick-actions" style="display:flex; gap:8px;">
+                <button class="quick-action-btn btn-delete" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Eliminar"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button>
+            </div>
+        </div>
+    `;
+
+    secGeneral.querySelector('.btn-delete').addEventListener('click', () => DeleteEngine.execute());
     
     // Name input
     const currentName = li.querySelector('.tree-item').textContent.trim();
@@ -352,6 +363,24 @@ function renderMeshProperties(mesh, wireColorHex, li) {
         build: (body) => {
             const secName = document.createElement('div');
             secName.className = 'prop-section';
+            
+            const actionsHeader = document.createElement('div');
+            actionsHeader.className = 'prop-section-title';
+            actionsHeader.style.display = 'flex';
+            actionsHeader.style.justifyContent = 'space-between';
+            actionsHeader.style.alignItems = 'center';
+            actionsHeader.innerHTML = `
+                <span>Propiedades</span>
+                <div class="quick-actions" style="display:flex; gap:8px;">
+                    <button class="quick-action-btn btn-duplicate" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Duplicar"><i data-lucide="copy" style="width:16px; height:16px;"></i></button>
+                    <button class="quick-action-btn btn-delete" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Eliminar"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button>
+                </div>
+            `;
+            secName.appendChild(actionsHeader);
+            
+            actionsHeader.querySelector('.btn-duplicate').addEventListener('click', () => DuplicateEngine.execute());
+            actionsHeader.querySelector('.btn-delete').addEventListener('click', () => DeleteEngine.execute());
+
             const currentName = li ? li.querySelector('.tree-item').textContent.trim() : (data.name || 'Elemento');
             secName.appendChild(createPropRow('Nombre', 'text', currentName, v => updateNodeName(li, v)));
             

@@ -193,14 +193,17 @@ export function performDrag(e) {
 /**
  * End drag
  */
-export function endDrag() {
+export function endDrag(didMove = true) {
     State.set('isDragging', false);
 
-    if (dragObject) {
+    if (dragObject && didMove) {
+        dragObject.userData.hasBeenMoved = true;
         const finalPos = DragGhost.getPosition();
         if (finalPos) {
             updateMeshPosVec(dragObject, finalPos);
         }
+    } else if (dragObject && !didMove) {
+        syncSelectionEdges(dragObject);
     }
 
     dragObject = null;
@@ -211,11 +214,13 @@ export function endDrag() {
 
     document.querySelectorAll('.drag-coords').forEach(el => el.style.display = 'none');
 
-    const selectedMesh = State.get('selectedMesh');
-    if (selectedMesh) {
-        EventBus.emit('properties:refresh');
+    if (didMove) {
+        const selectedMesh = State.get('selectedMesh');
+        if (selectedMesh) {
+            EventBus.emit('properties:refresh');
+        }
+        History.save();
     }
-    History.save();
 }
 
 /**

@@ -6,7 +6,9 @@ import { State } from '../core/State.js';
 import * as THREE from 'three';
 import { scene } from './SceneManager.js';
 import { Registry } from '../core/Registry.js';
+import { EventBus } from '../core/EventBus.js';
 import { MoveHandle } from './MoveHandle.js';
+import { RotationGizmo } from './RotationGizmo.js';
 import { PersonasEngine } from './PersonasEngine.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
@@ -97,6 +99,7 @@ export function syncSelectionEdges(mesh) {
         selectionPersonaWire.visible = false;
         cornerDots.forEach(d => d.visible = false);
         MoveHandle.hide();
+        RotationGizmo.hide();
         return;
     }
 
@@ -314,6 +317,7 @@ export function syncSelectionEdges(mesh) {
 
     // Keep move handle synced
     MoveHandle.update(mesh);
+    RotationGizmo.update(mesh);
 }
 
 /**

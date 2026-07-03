@@ -240,7 +240,7 @@
     }
     
     #properties-panel.collapsed {
-        transform: translateX(-280px); /* Hide completely to the left */
+        transform: translateX(-328px); /* Hide completely to the left */
     }
     
     #prop-header {

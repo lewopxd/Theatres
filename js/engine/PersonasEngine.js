@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { State } from '../core/State.js';
+import { EventBus } from '../core/EventBus.js';
 
 const loader = new GLTFLoader();
 
@@ -33,6 +34,8 @@ const EXPECTED_BONES = [
 // Registro de mixers de animaciones
 const mixers = new Map();
 const activeActions = new Map();
+const spawningMeshes = [];
+let spawnManifest = null;
 
 function uniform(f) { return { x: f, y: f, z: f }; }
 
@@ -49,12 +52,179 @@ function applyBoneWorld(bones, boneName, desiredWorld, inheritedFromParent) {
 
 export const PersonasEngine = {
     
+    isSpawningAny() {
+        return spawningMeshes.length > 0;
+    },
+
     /**
      * Llama esto en el loop principal
      * @param {number} delta 
      */
     update(delta) {
         if (!State.get('is3DMode')) return; // Pausar animaciones en modo 2D
+        
+        for (let i = spawningMeshes.length - 1; i >= 0; i--) {
+            const mesh = spawningMeshes[i];
+            
+            // Procesar Tween de Root Motion
+            if (mesh.userData.pendingRootMotion) {
+                const rm = mesh.userData.pendingRootMotion;
+                if (rm.time < rm.duration) {
+                    rm.time += delta;
+                    let t = rm.duration > 0 ? rm.time / rm.duration : 1;
+                    if (t > 1) t = 1;
+                    
+                    mesh.position.x = rm.startX + rm.dx * t;
+                    mesh.position.z = rm.startZ + rm.dz * t;
+                    mesh.updateMatrixWorld(true);
+                    
+                    if (t === 1) {
+                        mesh.userData.pendingRootMotion = null;
+                        if (State.get('selectedMesh') === mesh) {
+                            EventBus.emit('selection:restored', { mesh });
+                        }
+                    }
+                }
+            }
+            
+            if (mesh.userData.spawnState === 'falling') {
+                // Físicas de aceleración (Gravedad tipo juego: 15 m/s^2)
+                mesh.userData.fallVelocity += 15.0 * delta;
+                mesh.position.y -= mesh.userData.fallVelocity * delta;
+                
+                mesh.updateMatrixWorld(true);
+                
+                // Grace period: evitar falsos positivos de posturas altas iniciales
+                if (Date.now() - mesh.userData.fallStartTime > 250) {
+                    const lowestY = this.getLowestBoneY(mesh);
+                    if (lowestY <= 0.02) { // 2cm de padding para la piel/ropa
+                        const diff = 0.02 - lowestY;
+                        mesh.position.y += diff;
+                        mesh.updateMatrixWorld(true);
+                        
+                        mesh.userData.spawnState = 'impact';
+                        
+                        const impactAnim = mesh.userData.spawnImpactAnim || 'landing.glb';
+                        
+                        const playRecovery = () => {
+                            if (mesh.userData.spawnState !== 'recovery') return; // Cancelado
+                            
+                            const recoveryAnim = mesh.userData.spawnRecoveryAnim || 'landing.glb';
+                            if (recoveryAnim === 'none') {
+                                if (mesh.userData.spawnUseFinalPose) {
+                                    this.calculateRootMotion(mesh);
+                                    this.stopAnimation(mesh, 0.5);
+                                    this.consumeRootMotion(mesh, 0.5);
+                                }
+                                mesh.userData.spawnState = 'done';
+                                return;
+                            }
+                            
+                            this.calculateRootMotion(mesh);
+                            const fadeToRecovery = mesh.userData.spawnFadeToRecovery !== undefined ? mesh.userData.spawnFadeToRecovery : 0.3;
+                            this.loadAsset(mesh, `assets/modelos3d/personas/spawn/${recoveryAnim}`, true, true, false, fadeToRecovery).then(() => {
+                                this.consumeRootMotion(mesh, fadeToRecovery);
+                                const recAction = activeActions.get(mesh.uuid);
+                                const recDuration = recAction ? recAction.getClip().duration * 1000 : 1500;
+                                
+                                this.recordHipStart(mesh);
+
+                                setTimeout(() => {
+                                    if (mesh.userData.spawnState !== 'recovery') return; // Cancelado
+                                    
+                                    if (mesh.userData.spawnUseFinalPose) {
+                                        this.calculateRootMotion(mesh);
+                                        this.stopAnimation(mesh, 0.5);
+                                        this.consumeRootMotion(mesh, 0.5);
+                                    }
+                                    
+                                    mesh.userData.spawnState = 'done';
+                                }, Math.max(recDuration - (mesh.userData.spawnCutMs || 500), 300));
+                            }).catch(e => {
+                                if (mesh.userData.spawnUseFinalPose) {
+                                    this.stopAnimation(mesh, 0.5);
+                                }
+                                mesh.userData.spawnState = 'done';
+                            });
+                        };
+
+                        if (impactAnim === 'none') {
+                            this.calculateRootMotion(mesh);
+                            // No llamar stopAnimation aquí, dejar que playRecovery haga crossfade natural
+                            this.consumeRootMotion(mesh, 0); // Consumo instantáneo porque la caída casi no tiene XZ delta
+                            mesh.userData.spawnState = 'recovery';
+                            playRecovery();
+                        } else {
+                            // Disparar animación de impacto
+                            this.calculateRootMotion(mesh);
+                            const fadeToImpact = mesh.userData.spawnFadeToImpact !== undefined ? mesh.userData.spawnFadeToImpact : 0.3;
+                            this.loadAsset(mesh, `assets/modelos3d/personas/spawn/${impactAnim}`, true, true, false, fadeToImpact).then(() => {
+                                this.consumeRootMotion(mesh, fadeToImpact);
+                                const action = activeActions.get(mesh.uuid);
+                                const duration = action ? action.getClip().duration * 1000 : 1500;
+                                
+                                this.recordHipStart(mesh);
+                                
+                                setTimeout(() => {
+                                    if (mesh.userData.spawnState !== 'impact') return; // Cancelado
+                                    
+                                    mesh.userData.spawnState = 'recovery';
+                                    playRecovery();
+                                }, Math.max(duration - 200, 500));
+                            }).catch(e => {
+                                console.warn(`[PersonasEngine] Error cargando impacto en spawn/.`);
+                                if (mesh.userData.spawnUseFinalPose) {
+                                    this.stopAnimation(mesh, 0.5);
+                                }
+                                mesh.userData.spawnState = 'done';
+                            });
+                        }
+                    }
+                }
+                
+                // Si el objeto cayendo es el seleccionado, actualizamos UI live
+                if (State.get('selectedMesh') === mesh && mesh.userData.spawnState === 'falling') {
+                    EventBus.emit('statusbar:coords', { mesh });
+                    EventBus.emit('properties:refreshLive');
+                }
+            } else if (mesh.userData.spawnState === 'impact' || mesh.userData.spawnState === 'recovery' || (mesh.userData.spawnState === 'done' && mesh.userData.pendingRootMotion)) {
+                // --- CONTINUOUS DYNAMIC GROUNDING ---
+                // Evita que las animaciones atraviesen el piso (lo empuja hacia arriba)
+                const lowestY = this.getLowestBoneY(mesh);
+                if (lowestY < 0.02) {
+                    mesh.position.y += (0.02 - lowestY);
+                    mesh.updateMatrixWorld(true);
+                } else if (lowestY > 0.05) {
+                    // Si quedó flotando por el empuje de la animación anterior, lo baja suavemente al piso
+                    mesh.position.y -= 4.0 * delta; 
+                    mesh.updateMatrixWorld(true);
+                    
+                    const newLowestY = this.getLowestBoneY(mesh);
+                    if (newLowestY < 0.02) {
+                        mesh.position.y += (0.02 - newLowestY);
+                        mesh.updateMatrixWorld(true);
+                    }
+                }
+                
+                if (State.get('selectedMesh') === mesh) {
+                    EventBus.emit('statusbar:coords', { mesh });
+                }
+            }
+        }
+        
+        // Limpieza de objetos que ya terminaron la secuencia y no tienen tweens pendientes
+        for (let i = spawningMeshes.length - 1; i >= 0; i--) {
+            const mesh = spawningMeshes[i];
+            if (mesh.userData.spawnState === 'done' && !mesh.userData.pendingRootMotion) {
+                mesh.userData.spawnComplete = true;
+                if (!mesh.userData.hasBeenMoved) {
+                    mesh.position.y = 0;
+                    mesh.updateMatrixWorld(true);
+                }
+                spawningMeshes.splice(i, 1);
+            }
+        }
+
         const isDragging = State.get('isDragging');
         mixers.forEach(mixer => {
             if (isDragging) return;
@@ -242,7 +412,7 @@ export const PersonasEngine = {
         // El movimiento (MoveTool) ya maneja la posición de todo el grupo.
     },
 
-    async loadAsset(model, url, isAnimation) {
+    async loadAsset(model, url, isAnimation, loopOnce = false, skipCrossfade = false, fadeTime = 0.3) {
         if (!mixers.has(model.uuid)) return;
         
         return new Promise((resolve, reject) => {
@@ -250,41 +420,49 @@ export const PersonasEngine = {
             const bypassUrl = `${url}?t=${Date.now()}`;
             loader.load(bypassUrl, (gltf) => {
                 if (gltf.animations && gltf.animations.length > 0) {
-                    const clip = gltf.animations[0];
-                    clip.name = url + '_' + Date.now(); // FORZAR nombre único para evitar que el mixer reutilice la acción vieja
-                    const mixer = mixers.get(model.uuid);
-                    
+                    const newAction = mixers.get(model.uuid).clipAction(gltf.animations[0]);
                     const oldAction = activeActions.get(model.uuid);
-                    const newAction = mixer.clipAction(clip);
+                    
+                    if (loopOnce) {
+                        newAction.setLoop(THREE.LoopOnce, 1);
+                        newAction.clampWhenFinished = true;
+                    } else {
+                        newAction.setLoop(THREE.LoopRepeat);
+                        newAction.clampWhenFinished = false;
+                    }
                     
                     if (oldAction && oldAction !== newAction) {
-                        newAction.reset();
-                        newAction.setEffectiveTimeScale(1);
-                        newAction.setEffectiveWeight(1);
-                        newAction.play();
-                        newAction.crossFadeFrom(oldAction, 0.3, true);
+                        if (skipCrossfade) {
+                            oldAction.stop();
+                            newAction.reset();
+                            newAction.setEffectiveTimeScale(1);
+                            newAction.setEffectiveWeight(1);
+                            newAction.play();
+                        } else {
+                            newAction.reset();
+                            newAction.setEffectiveTimeScale(1);
+                            newAction.setEffectiveWeight(1);
+                            newAction.play();
+                            newAction.crossFadeFrom(oldAction, fadeTime, true);
+                        }
                     } else {
                         if (oldAction) oldAction.stop();
                         newAction.reset();
                         newAction.setEffectiveTimeScale(1);
                         newAction.play();
-                        newAction.fadeIn(0.3); // Interpolamos suavemente
+                        newAction.fadeIn(fadeTime); // Interpolamos suavemente
                     }
                     
                     activeActions.set(model.uuid, newAction);
                     
                     if (!isAnimation) {
-                        // Es una pose, lo pausamos en el frame 0 o algo así
-                        // o simplemente se corre pero es una animación estática
+                        model.userData.currentPose = url;
                     }
                     resolve();
                 } else {
                     console.warn('[PersonasEngine] No se encontraron animaciones en', url);
                     resolve();
                 }
-            }, undefined, (err) => {
-                console.error('[PersonasEngine] Error cargando asset', url, err);
-                reject(err);
             });
         });
     },
@@ -310,17 +488,95 @@ export const PersonasEngine = {
         }
     },
 
-    stopAnimation(model) {
+    stopAnimation(model, fadeDuration = 0) {
         if (mixers.has(model.uuid)) {
             const mixer = mixers.get(model.uuid);
-            const oldAction = activeActions.get(model.uuid);
-            if (oldAction) {
-                oldAction.fadeOut(0.3);
+            
+            // Cancelar timeout previo si existe para no matar animaciones nuevas
+            if (model.userData.stopAnimTimeout) {
+                clearTimeout(model.userData.stopAnimTimeout);
+                model.userData.stopAnimTimeout = null;
             }
-            setTimeout(() => {
+            
+            if (fadeDuration > 0) {
+                const action = activeActions.get(model.uuid);
+                if (action) {
+                    action.fadeOut(fadeDuration);
+                    model.userData.stopAnimTimeout = setTimeout(() => {
+                        mixer.stopAllAction();
+                        activeActions.delete(model.uuid);
+                        model.userData.stopAnimTimeout = null;
+                    }, fadeDuration * 1000);
+                } else {
+                    mixer.stopAllAction();
+                    activeActions.delete(model.uuid);
+                }
+            } else {
                 mixer.stopAllAction();
                 activeActions.delete(model.uuid);
-            }, 300);
+            }
+        }
+    },
+
+    recordHipStart(mesh) {
+        if (!mesh) return;
+        const hips = mesh.getObjectByName('mixamorigHips') || mesh.getObjectByName('Hips') || mesh.getObjectByName('Cadera') || mesh.getObjectByName('hip');
+        if (hips) {
+            mesh.updateMatrixWorld(true);
+            const startHips = new THREE.Vector3();
+            hips.getWorldPosition(startHips);
+            mesh.userData.spawnStartHips = startHips;
+        }
+    },
+
+    calculateRootMotion(mesh) {
+        if (!mesh || !mesh.userData.spawnStartHips) return;
+        const hips = mesh.getObjectByName('mixamorigHips') || mesh.getObjectByName('Hips') || mesh.getObjectByName('Cadera') || mesh.getObjectByName('hip');
+        if (hips) {
+            mesh.updateMatrixWorld(true);
+            const endHips = new THREE.Vector3();
+            hips.getWorldPosition(endHips);
+            
+            const dx = endHips.x - mesh.userData.spawnStartHips.x;
+            const dz = endHips.z - mesh.userData.spawnStartHips.z;
+            
+            mesh.userData.pendingRootMotion = { dx, dz };
+        }
+    },
+
+    getLowestBoneY(mesh) {
+        let lowestY = Infinity;
+        const helper = new THREE.Vector3();
+        mesh.traverse(child => {
+            if (child.isBone) {
+                child.getWorldPosition(helper);
+                if (helper.y < lowestY) lowestY = helper.y;
+            }
+        });
+        return lowestY;
+    },
+
+    consumeRootMotion(mesh, duration = 0.3) {
+        if (!mesh || !mesh.userData.pendingRootMotion) return;
+        
+        if (duration <= 0) {
+            mesh.position.x += mesh.userData.pendingRootMotion.dx;
+            mesh.position.z += mesh.userData.pendingRootMotion.dz;
+            mesh.updateMatrixWorld(true);
+            mesh.userData.pendingRootMotion = null;
+            mesh.userData.spawnStartHips = null;
+            
+            if (State.get('selectedMesh') === mesh) {
+                EventBus.emit('selection:restored', { mesh });
+                EventBus.emit('statusbar:coords', { mesh });
+                EventBus.emit('properties:refreshLive');
+            }
+        } else {
+            mesh.userData.pendingRootMotion.duration = duration;
+            mesh.userData.pendingRootMotion.time = 0;
+            mesh.userData.pendingRootMotion.startX = mesh.position.x;
+            mesh.userData.pendingRootMotion.startZ = mesh.position.z;
+            mesh.userData.spawnStartHips = null; // Limpiar para el siguiente
         }
     },
 
@@ -359,5 +615,108 @@ export const PersonasEngine = {
         }
 
         return box;
+    },
+
+    async playRandomSpawnSequence(mesh) {
+        if (!mesh || !mesh.userData.isPersona) return;
+        try {
+            const res = await fetch(`assets/modelos3d/personas/spawn/sequences.json?t=${Date.now()}`);
+            if (res.ok) {
+                const sequences = await res.json();
+                if (sequences && sequences.length > 0) {
+                    const seq = sequences[Math.floor(Math.random() * sequences.length)];
+                    this.playSpawnSequence(mesh, seq.fall, seq.impact, seq.recovery, seq.cutMs, seq.useFinalPose, seq.fadeToImpact, seq.fadeToRecovery);
+                } else {
+                    this.playSpawnSequence(mesh);
+                }
+            } else {
+                this.playSpawnSequence(mesh);
+            }
+        } catch (e) {
+            console.error('[PersonasEngine] Error loading sequences for random spawn:', e);
+            this.playSpawnSequence(mesh);
+        }
+    },
+
+    async playSpawnSequence(mesh, forceFall = null, forceImpact = null, forceRecovery = null, cutMs = 500, useFinalPose = true, fadeImpact = 0.3, fadeRecovery = 0.3) {
+        if (!mesh || !mesh.userData.isPersona) return;
+        
+        // Limpiar cualquier estado previo o animación en curso
+        this.stopAnimation(mesh); 
+        mesh.userData.pendingRootMotion = null;
+        mesh.userData.spawnStartHips = null;
+        mesh.userData.spawnCutMs = cutMs;
+        mesh.userData.spawnUseFinalPose = useFinalPose;
+        mesh.userData.spawnFadeToImpact = fadeImpact;
+        mesh.userData.spawnFadeToRecovery = fadeRecovery;
+        mesh.userData.fallStartTime = Date.now();
+        mesh.userData.fallVelocity = 0;
+        
+        mesh.userData.spawnState = 'preparing_fall'; // Pausamos físicas hasta que cargue la animación
+        mesh.position.y = 6.0; // Aparece a 6 metros de altura
+        mesh.updateMatrixWorld(true);
+        
+        if (State.get('selectedMesh') === mesh) {
+            EventBus.emit('statusbar:coords', { mesh });
+            EventBus.emit('properties:refreshLive');
+        }
+        
+        if (!spawningMeshes.includes(mesh)) {
+            spawningMeshes.push(mesh);
+        }
+        
+        if (!spawnManifest) {
+            try {
+                const res = await fetch(`assets/modelos3d/personas/spawn/index.json?t=${Date.now()}`);
+                if (res.ok) spawnManifest = await res.json();
+            } catch (e) {
+                console.warn('[PersonasEngine] No se pudo cargar spawn manifest.', e);
+                spawnManifest = { falling: [], impact: [], recovery: [] };
+            }
+        }
+        
+        let fallingAnim = forceFall || 'falling.glb';
+        let impactAnim = forceImpact || 'landing.glb';
+        let recoveryAnim = forceRecovery || 'landing.glb';
+        
+        if (!forceFall && spawnManifest && spawnManifest.falling && spawnManifest.falling.length > 0) {
+            fallingAnim = spawnManifest.falling[Math.floor(Math.random() * spawnManifest.falling.length)];
+        }
+        if (!forceImpact && spawnManifest && spawnManifest.impact && spawnManifest.impact.length > 0) {
+            impactAnim = spawnManifest.impact[Math.floor(Math.random() * spawnManifest.impact.length)];
+        }
+        if (!forceRecovery && spawnManifest && spawnManifest.recovery && spawnManifest.recovery.length > 0) {
+            recoveryAnim = spawnManifest.recovery[Math.floor(Math.random() * spawnManifest.recovery.length)];
+        }
+        
+        mesh.userData.spawnImpactAnim = impactAnim;
+        mesh.userData.spawnRecoveryAnim = recoveryAnim;
+        
+        try {
+            await this.loadAsset(mesh, `assets/modelos3d/personas/spawn/${fallingAnim}`, true, false);
+            mesh.userData.spawnState = 'falling'; // Habilitar física de caída ahora que la animación corre
+            this.recordHipStart(mesh); // Iniciar seguimiento de caída
+        } catch(e) {
+            console.warn(`[PersonasEngine] ${fallingAnim} no encontrado. El personaje caerá en T-Pose.`);
+            mesh.userData.spawnState = 'falling'; // Habilitar física de todos modos
+        }
+    },
+
+    /**
+     * Limpia un personaje de la memoria de animaciones
+     * @param {THREE.Object3D} mesh 
+     */
+    removePersona(mesh) {
+        if (!mesh) return;
+        const uuid = mesh.uuid;
+        if (mixers.has(uuid)) {
+            mixers.get(uuid).stopAllAction();
+            mixers.delete(uuid);
+        }
+        if (activeActions.has(uuid)) {
+            activeActions.delete(uuid);
+        }
+        const idx = spawningMeshes.indexOf(mesh);
+        if (idx > -1) spawningMeshes.splice(idx, 1);
     }
 };

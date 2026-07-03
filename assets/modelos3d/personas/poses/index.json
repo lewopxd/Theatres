@@ -14,5 +14,9 @@
     {
         "name": "Male Standing Pose",
         "file": "male standing pose.glb"
+    },
+    {
+        "name": "T-Pose",
+        "file": "T-Pose.glb"
     }
 ]

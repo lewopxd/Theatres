@@ -6,7 +6,7 @@
 export const DRAG_THRESHOLD = 4;
 
 /** Intervalo en ms para detectar doble-clic */
-export const DBL_CLICK_MS = 300;
+export const DBL_CLICK_MS = 500;
 
 /** Labels de los planos de movimiento */
 export const AXIS_LABELS = {
@@ -17,10 +17,16 @@ export const AXIS_LABELS = {
 
 /** Atajos de teclado para herramientas */
 export const TOOL_KEYS = {
-    'q': 'select', 'Q': 'select',
-    'w': 'move',   'W': 'move',
-    'e': 'orbit',  'E': 'orbit',
-    'h': 'pan',    'H': 'pan',
+    'q': 'select',
+    'w': 'move',
+    'r': 'rotate',
+    'e': 'orbit',
+    'h': 'pan',
+    'Q': 'select',
+    'W': 'move',
+    'R': 'rotate',
+    'E': 'orbit',
+    'H': 'pan'
 };
 
 /** Frustum size para cámaras ortográficas (menor valor = vista inicial más cercana) */

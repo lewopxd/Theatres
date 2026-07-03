@@ -247,8 +247,18 @@ function addTreeElement(name, icon, type) {
         createStruct(geo, mat, '#007acc', id, parentGroupId, 0, 0.5, 0, 0, type, params);
     }
 }
+import { PlacementEngine } from '../engine/PlacementEngine.js';
 
 export async function addPersonaElement(type) {
+    if (PersonasEngine.isSpawningAny()) {
+        return;
+    }
+
+    if (!PlacementEngine.canSpawnPersona()) {
+        alert('Límite máximo alcanzado: No puedes agregar más de ' + PlacementEngine.MAX_PERSONAS + ' personas para no sobrecargar el navegador.');
+        return;
+    }
+
     let parentLi = State.get('selectedLi');
     if (parentLi && parentLi.dataset.type !== 'grupo') parentLi = parentLi.parentElement.closest('li');
 
@@ -313,19 +323,27 @@ export async function addPersonaElement(type) {
         mesh.userData.id = id;
         mesh.userData.group = parentGroupId;
         
+        const spawnPos = PlacementEngine.getValidSpawnPosition(0.4);
+        mesh.position.set(spawnPos.x, 6.0, spawnPos.z);
+        mesh.updateMatrixWorld(true);
+
         // Cajas por defecto como wireframe o si es fallback
         const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 1.7, 0.5));
         const wireMat = new THREE.LineBasicMaterial({ color: randomColor });
         const wire = new THREE.LineSegments(wireGeo, wireMat);
         wire.userData = { id, group: parentGroupId, baseColor: new THREE.Color(randomColor), layerVisible: true, isPersonaWire: true };
-        wire.position.y = 0.85;
+        wire.position.copy(mesh.position);
+        wire.position.y += 0.85; // centro de la caja
         wire.visible = false; // Never show the static fallback wire for Personas
 
-        // Si no pudo cargar el modelo, es el grupo fallback
         scene.add(mesh);
         scene.add(wire);
         Registry.addStructure(mesh);
         Registry.addWire(wire);
+        
+        // Trigger cinemática de aparición
+        PersonasEngine.playRandomSpawnSequence(mesh);
+        
         History.save();
     } catch (e) {
         console.error('Failed to add persona', e);

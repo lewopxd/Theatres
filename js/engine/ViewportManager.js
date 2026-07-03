@@ -13,6 +13,7 @@ import { State } from '../core/State.js';
 import { Registry } from '../core/Registry.js';
 import { PersonasEngine } from './PersonasEngine.js';
 import { updateLoop as updateSelectionLoop } from './SelectionRenderer.js';
+import { RotationGizmo } from './RotationGizmo.js';
 
 let gizmoRef = null;
 let containerRef = null;
@@ -86,6 +87,7 @@ export function renderFrame() {
         renderer.setViewport(0, 0, containerRef.clientWidth, containerRef.clientHeight);
         renderer.setScissorTest(false);
         renderer.render(scene, cam3D);
+        RotationGizmo.updateCamera(cam3D);
         if (gizmoRef) gizmoRef.render();
     } else if (!isSplit) {
         const activeMode = State.get('active2DMode');

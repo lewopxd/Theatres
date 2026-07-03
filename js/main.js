@@ -28,6 +28,8 @@ import { setActiveTool, initToolShortcuts, initPlaneButtons, initToolButtons } f
 import { handleSelectClick } from './tools/SelectTool.js';
 import { initDrag, performDrag, endDrag } from './tools/MoveTool.js';
 import { MoveHandle } from './engine/MoveHandle.js';
+import { RotationGizmo } from './engine/RotationGizmo.js';
+import { initRotateDrag, performRotateDrag, endRotateDrag } from './tools/RotateTool.js';
 
 // UI
 import { initLoader, loaderActivate, loaderComplete, loaderDismiss } from './ui/LoaderUI.js';
@@ -130,12 +132,18 @@ async function boot() {
     initToolShortcuts();
     initPlaneButtons();
     initToolButtons();
-
+    
     // Setup pointer events for canvas
     initCanvasPointerEvents(container);
 
-    // Restore from localStorage
-    History.restoreFromStorage();
+    // Restore from localStorage (await ensures all 3D GLTFs finish loading)
+    await History.restoreFromStorage();
+    
+    // Remove the 3D loading overlay and unlock the UI
+    const appShell = $('app-shell');
+    if (appShell) {
+        appShell.classList.remove('app-loading');
+    }
 
     loaderComplete('state');
 
@@ -197,42 +205,74 @@ function initCanvasPointerEvents(container) {
                 selectedMesh.visible = wasVisible;
                 
                 const hitHandle = MoveHandle.hitTest(raycaster);
+                const hitRotationObj = RotationGizmo.hitTest(raycaster);
+                const hitRotation = hitRotationObj ? hitRotationObj.axis : null;
                 
-                if (intersects.length > 0 || hitHandle) {
+                if (intersects.length > 0 || hitHandle || hitRotation) {
                     e.stopPropagation(); // Stop OrbitControls from panning
-                    // Auto-activate move tool and start drag immediately
-                    if (tool !== 'move') {
-                        State.set('preDragTool', tool);
-                        setActiveTool('move');
+                    // Auto-activate move or rotate tool and start drag immediately
+                    if (hitRotation || tool === 'rotate') {
+                        if (tool !== 'rotate') {
+                            State.set('preDragTool', tool);
+                            setActiveTool('rotate');
+                        }
+                        initRotateDrag(e);
+                    } else {
+                        if (tool !== 'move') {
+                            State.set('preDragTool', tool);
+                            setActiveTool('move');
+                        }
+                        initDrag(e);
                     }
-                    initDrag(e);
+                    State.set('hasDragged', false);
                     return;
                 }
             }
 
             if (tool === 'move' && selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
                 initDrag(e);
+                State.set('hasDragged', false);
             }
         }
     });
     const canvasWrapper = $('canvas-wrapper');
 
+    const updateGizmoVisibility = () => {
+        const selectedMesh = State.get('selectedMesh');
+        const activeTool = State.get('activeTool');
+        const isEditable = selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked;
+
+        if (isEditable && activeTool === 'rotate' && State.get('is3DMode')) {
+            MoveHandle.hide();
+            RotationGizmo.show(selectedMesh);
+        } else if (isEditable) {
+            RotationGizmo.hide();
+            MoveHandle.show(selectedMesh);
+        } else {
+            MoveHandle.hide();
+            RotationGizmo.hide();
+        }
+    };
+    EventBus.on('state:selectedMesh', updateGizmoVisibility);
+    EventBus.on('tool:changed', updateGizmoVisibility);
+
     const checkHoverVisibility = (e) => {
         const selectedMesh = State.get('selectedMesh');
         const isDragging = State.get('isDragging');
 
-        // Handle visibility of the center point (MoveHandle)
+        const activeTool = State.get('activeTool');
+        
+        // Handle visibility of the center point (MoveHandle) and RotationGizmo
         if (selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
             setRaycasterFromEvent(e);
             const raycaster = getRaycaster();
             
-            const handleHovered = MoveHandle.isVisible && MoveHandle.hitTest(raycaster);
-            
-            if (!MoveHandle.isVisible) MoveHandle.show(selectedMesh);
-            MoveHandle.setHover(handleHovered);
-        } else {
-            if (MoveHandle.isVisible) {
-                MoveHandle.hide();
+            if (activeTool === 'rotate' && State.get('is3DMode')) {
+                const hitAxisObj = RotationGizmo.hitTest(raycaster);
+                RotationGizmo.setHover(hitAxisObj ? hitAxisObj.halfId : null);
+            } else {
+                const handleHovered = MoveHandle.isVisible && MoveHandle.hitTest(raycaster);
+                MoveHandle.setHover(handleHovered);
             }
         }
 
@@ -296,7 +336,15 @@ function initCanvasPointerEvents(container) {
 
         if (!isPointerDown) return;
         if (isOverUI(e)) return;
-        if (State.get('isDragging')) performDrag(e);
+        
+        if (State.get('isDragging')) {
+            const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+            if (dist >= DRAG_THRESHOLD) {
+                State.set('hasDragged', true);
+                if (State.get('activeTool') === 'rotate') performRotateDrag(e);
+                else performDrag(e);
+            }
+        }
     });
 
     renderer.domElement.addEventListener('pointerup', e => {
@@ -307,11 +355,19 @@ function initCanvasPointerEvents(container) {
         // if the mouse is no longer over the object.
 
         if (State.get('isDragging')) {
-            endDrag();
+            const hasDragged = State.get('hasDragged');
+            if (State.get('activeTool') === 'rotate') endRotateDrag(hasDragged);
+            else endDrag(hasDragged);
+            
             const preDragTool = State.get('preDragTool');
             if (preDragTool) {
                 setActiveTool(preDragTool);
                 State.set('preDragTool', null);
+            }
+            
+            if (!hasDragged) {
+                handleSelectClick(e, pointerDownPos);
+                checkHoverVisibility(e);
             }
             return;
         }

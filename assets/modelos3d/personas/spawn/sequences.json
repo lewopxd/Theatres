@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Secuencia 1",
+    "fall": "spawn_Falling Idle.glb",
+    "fadeToImpact": 0.3,
+    "impact": "spawn_Impact Down.glb",
+    "fadeToRecovery": 0.3,
+    "recovery": "spawn_Landing Getting Up.glb",
+    "cutMs": 1150,
+    "useFinalPose": true
+  },
+  {
+    "name": "Secuencia 2",
+    "fall": "spawn_Falling Idle.glb",
+    "fadeToImpact": 0.1,
+    "impact": "spawn_Impact Flat.glb",
+    "fadeToRecovery": 0.5,
+    "recovery": "spawn_Landing_Stand Up_downside.glb",
+    "cutMs": 1450,
+    "useFinalPose": true
+  },
+  {
+    "name": "Secuencia 3",
+    "fall": "spawn_Falling Idle.glb",
+    "fadeToImpact": 0.1,
+    "impact": "spawn_Landing Hard.glb",
+    "fadeToRecovery": 0.5,
+    "recovery": "none",
+    "cutMs": 500,
+    "useFinalPose": false
+  },
+  {
+    "name": "Secuencia 4",
+    "fall": "spawn_Falling Idle.glb",
+    "fadeToImpact": 0.1,
+    "impact": "spawn_Landing from.glb",
+    "fadeToRecovery": 0.5,
+    "recovery": "none",
+    "cutMs": 500,
+    "useFinalPose": false
+  },
+  {
+    "name": "Secuencia 5",
+    "fall": "spawn_Falling.glb",
+    "fadeToImpact": 0.3,
+    "impact": "spawn_Impact Flat.glb",
+    "fadeToRecovery": 0.5,
+    "recovery": "spawn_Landing_Stand Up_downside.glb",
+    "cutMs": 1300,
+    "useFinalPose": true
+  },
+  {
+    "name": "Secuencia 6",
+    "fall": "spawn_Falling.glb",
+    "fadeToImpact": 0.3,
+    "impact": "spawn_Landing Hard.glb",
+    "fadeToRecovery": 0.3,
+    "recovery": "none",
+    "cutMs": 500,
+    "useFinalPose": false
+  }
+]

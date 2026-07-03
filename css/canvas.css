@@ -131,3 +131,37 @@
 #canvas-wrapper.dragging-move {
     cursor: default;
 }
+
+/* ============================================================
+   CANVAS LOADING OVERLAY
+============================================================ */
+#canvas-loading-overlay {
+    position: absolute;
+    inset: 0;
+    background-color: var(--base-bg);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.cube-spinner {
+    width: 40px; 
+    height: 40px;
+    background-color: var(--accent);
+    animation: rotateCube 1.2s infinite ease-in-out;
+}
+
+@keyframes rotateCube {
+    0% { transform: perspective(120px) rotateX(0deg) rotateY(0deg); }
+    50% { transform: perspective(120px) rotateX(-180deg) rotateY(0deg); }
+    100% { transform: perspective(120px) rotateX(-180deg) rotateY(-180deg); }
+}
+
+/* UI Lock during 3D load */
+#app-shell.app-loading {
+    pointer-events: none !important;
+}
+#app-shell.app-loading #canvas-loading-overlay {
+    display: flex !important;
+}

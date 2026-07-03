@@ -1,0 +1,17 @@
+{
+    "falling": [
+        "spawn_Falling Idle.glb",
+        "spawn_Falling.glb"
+    ],
+    "impact": [
+        "spawn_Impact Down.glb",
+        "spawn_Impact Flat.glb",
+        "spawn_Landing Hard.glb",
+        "spawn_Landing from.glb"
+    ],
+    "recovery": [
+        "spawn_Landing Getting Up.glb",
+        "spawn_Landing To Roll.glb",
+        "spawn_Landing_Stand Up_downside.glb"
+    ]
+}
