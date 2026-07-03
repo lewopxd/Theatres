@@ -4,104 +4,246 @@ import { State } from '../core/State.js';
 import { PersonasEngine } from './PersonasEngine.js';
 import { getObjectBounds } from './MoveHandle.js';
 
+/**
+ * SISTEMA DE COORDENADAS (APP vs THREE.JS):
+ * - Z (Azul): El eje apunta hacia arriba (corresponde al eje Y en Three.js).
+ * - Y (Verde): El eje apunta hacia la cámara/pantalla del observador (corresponde al eje Z en Three.js).
+ * - X (Morado/Rojo): El eje apunta hacia el lado derecho (corresponde al eje X en Three.js).
+ * 
+ * ROTACIÓN Y SEGMENTOS:
+ * Al fijar offsetRibbon = Math.PI / 2 para todos, logramos los cortes lógicos correctos:
+ * - Morado ('x'): Se corta Arriba/Abajo. Nos da segmentos Frontal y Trasero (Atrás/Adelante).
+ * - Azul ('y'): Se corta Izquierda/Derecha. Nos da segmentos Frontal y Trasero (Atrás/Adelante).
+ * - Verde ('z'): Se corta Izquierda/Derecha. Nos da segmentos Arriba y Abajo.
+ * 
+ * EL STICKER (FLECHA):
+ * Se dibuja en el CENTRO absoluto de cada segmento. 
+ * Para el Azul y el Morado, el centro de sus segmentos Frontal/Trasero recae exactamente
+ * sobre el eje Y CAD (Z de Three.js), que es su punto de intersección físico.
+ */
+
 // Gizmo configuration
-const RADIUS = 0.8;
+const RADIUS = 0.4;
 const RIBBON_WIDTH = 0.04;
 const HIT_TUBE = 0.15;
 
-const AXIS_COLORS = {
-    x: new THREE.Color(0x9966ff), // Más púrpura para que se note la diferencia (Su eje X)
-    y: new THREE.Color(0x33ccff), // Cian base (Su eje Z - vertical)
-    z: new THREE.Color(0x33e6cc)  // Cian sutilmente hacia verde (Su eje Y - profundidad)
-};
-const COLOR_HOVER = new THREE.Color(0xffffff); // Temporary white for hover
+const ARROW_SEGMENT_ARC_LENGTH = RADIUS * Math.PI;
+// Distancias desde el centro del segmento (512 en el canvas de 1024)
+const ARROW_TIP_DIST_WORLD = (120 / 1024) * ARROW_SEGMENT_ARC_LENGTH; // Donde termina la punta (ancho 0)
+const ARROW_BASE_DIST_WORLD = (70 / 1024) * ARROW_SEGMENT_ARC_LENGTH; // Donde empieza la cabeza (ancho máximo)
+const ARROW_HEAD_HALF_WIDTH_RATIO = (116 / 128) / 2;
 
-// Custom Shader for Dynamic Thickness and Opacity
+const AXIS_COLORS = {
+    x: new THREE.Color(0x9966ff), // Morado (Eje X CAD)
+    y: new THREE.Color(0x33ccff), // Azul (Eje Z CAD)
+    z: new THREE.Color(0x33e6cc)  // Verde (Eje Y CAD)
+};
+const COLOR_HOVER = new THREE.Color(0xffffff);
+
 const ringVertexShader = `
     uniform vec3 uCameraPos;
-    varying float vFactor; // 0.0 for back, 1.0 for front
-    varying float vLocalY; // -1.0 to 1.0 based on ribbon width
+    varying float vFactor;
+    varying float vLocalY;
     
     void main() {
-        // RIBBON_WIDTH is 0.04, so position.y goes from -0.02 to 0.02
-        vLocalY = position.y / 0.02; 
-        
+        vLocalY = position.y / 0.02;
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
         vec3 viewDir = normalize(uCameraPos - worldPos.xyz);
         
-        // cylinder normal in world space (ignoring Y since cylinder is along Y)
         vec3 localNormal = normalize(vec3(position.x, 0.0, position.z));
         vec3 worldNormal = normalize(mat3(modelMatrix) * localNormal);
         
-        float d = dot(worldNormal, viewDir);
-        // Map d from [-1, 1] (back to front) into a smooth 0..1 curve
-        vFactor = smoothstep(-1.0, 1.0, d); 
-        
-        // Scale local Y (thickness) based on front/back
-        // Minimum width in back is 0.8 (still a ribbon, not a line), max in front is 1.3
-        float widthScale = mix(0.8, 1.3, vFactor); 
-        vec3 newPos = position;
-        newPos.y *= widthScale;
-        
-        gl_Position = projectionMatrix * viewMatrix * worldPos;
-        // Fix: we altered local position, so recalculate worldPos for correct projection
-        vec4 modifiedWorldPos = modelMatrix * vec4(newPos, 1.0);
-        gl_Position = projectionMatrix * viewMatrix * modifiedWorldPos;
+        vFactor = max(0.0, dot(viewDir, worldNormal));
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
 `;
 
 const ringFragmentShader = `
     uniform vec3 uColor;
-    uniform vec3 uHoverColor;
+    uniform vec3 uBorderColor;
     uniform float uOpacity;
     varying float vFactor;
     varying float vLocalY;
 
     void main() {
-        // Calculate border based on local Y (-1 to 1)
         float edge = abs(vLocalY);
-        // Create a sharp, smooth border on the outer 15% of the ribbon
-        float borderFactor = smoothstep(0.75, 0.9, edge);
-        
-        // Use a darkened version of the base color for the border
-        vec3 borderColor = uColor * 0.4; // 60% darker
-        vec3 finalColor = mix(uColor, borderColor, borderFactor);
+        float borderFactor = smoothstep(0.15, 0.95, edge);
+        vec3 finalColor = mix(uColor, uBorderColor, borderFactor);
 
-        // Opacity: front = 1.0, back = 0.2
-        float alphaScale = mix(0.2, 1.0, vFactor);
-        
-        // Optional: make the border slightly more opaque in the back to maintain visibility
+        float alphaScale = mix(0.2, 0.95, vFactor);
         float finalOpacity = mix(uOpacity * alphaScale, uOpacity * mix(0.4, 1.0, vFactor), borderFactor);
         
         gl_FragColor = vec4(finalColor, finalOpacity);
     }
 `;
 
-// Shaders for flat disk rings (like Y axis)
 const diskVertexShader = `
-    varying vec2 vUv;
+    varying vec3 vLocalPos;
     void main() {
-        vUv = uv;
+        vLocalPos = position;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
 `;
 
 const diskFragmentShader = `
     uniform vec3 uColor;
+    uniform vec3 uBorderColor;
     uniform float uOpacity;
-    varying vec2 vUv;
-
+    
+    uniform float uIsActive;
+    uniform float uHasArrow; 
+    uniform float uStartAngle;
+    uniform float uRadius;
+    uniform float uRibbonWidth;
+    uniform float uHeadWidth;
+    uniform float uArrowTipDist;
+    uniform float uArrowBaseDist;
+    uniform float uHeadHalfWidthRatio;
+    
+    varying vec3 vLocalPos;
+    
     void main() {
-        // vUv.y goes from 0 at inner radius to 1 at outer radius
-        float edge = abs(vUv.y - 0.5) * 2.0;
-        float borderFactor = smoothstep(0.75, 0.9, edge);
+        float theta = atan(vLocalPos.y, vLocalPos.x);
         
-        vec3 borderColor = uColor * 0.4; // 60% darker
-        vec3 finalColor = mix(uColor, borderColor, borderFactor);
+        const float TAU = 6.28318530718;
+        const float PI = 3.14159265359;
+        
+        // Las puntas de la flecha de arrastre deben ir en los EXTREMOS del segmento.
+        // Es decir, en uStartAngle y en uStartAngle + PI
+        float endAngleA = uStartAngle;
+        float endAngleB = uStartAngle + PI;
+        
+        float dA = mod(abs(theta - endAngleA), TAU);
+        dA = min(dA, TAU - dA);
+        float dB = mod(abs(theta - endAngleB), TAU);
+        dB = min(dB, TAU - dB);
+        
+        // Distancia angular al extremo (corte) más cercano
+        float distToEnd = min(dA, dB);
+        
+        float r = length(vLocalPos.xy);
+        float distFromCenter = r - uRadius;
+        
+        // Distancia física a lo largo del arco desde el extremo (corte)
+        float arcLengthFromEnd = distToEnd * uRadius; 
+        
+        float currentHalfWidth = uRibbonWidth / 2.0;
+        
+        // uArrowTipDist y uArrowBaseDist están medidas desde el centro (512)
+        // Para calcular desde los extremos (0 y 1024), convertimos la longitud física total de la flecha:
+        float headLengthPhysical = uArrowTipDist - uArrowBaseDist; // 50 unidades de canvas a world
+        
+        if (uIsActive > 0.5 && uHasArrow > 0.5) {
+            // Si estamos a una distancia desde el extremo MENOR a la longitud de la cabeza,
+            // entonces estamos dentro de la punta de flecha.
+            if (arcLengthFromEnd < headLengthPhysical) {
+                float maxHeadHalfW = uHeadWidth * uHeadHalfWidthRatio;
+                // En el extremo exacto (arcLengthFromEnd == 0), el ancho es 0.
+                // A medida que nos alejamos del extremo, el ancho crece hasta maxHeadHalfW.
+                float arrowHalfWidth = (arcLengthFromEnd / headLengthPhysical) * maxHeadHalfW;
+                
+                // Forzamos a que el ancho converja a la punta sin límite mínimo
+                currentHalfWidth = arrowHalfWidth;
+            }
+        }
+        
+        float aa = fwidth(distFromCenter) * 1.5 + 0.0005;
+        float mask = 1.0 - smoothstep(currentHalfWidth - aa, currentHalfWidth + aa, abs(distFromCenter));
+        
+        if (mask < 0.5) discard;
+        
+        float edge = abs(distFromCenter) / max(currentHalfWidth, 0.0001);
+        float borderFactor = smoothstep(0.15, 0.95, edge);
+        
+        vec3 finalColor = mix(uColor, uBorderColor, borderFactor);
         
         gl_FragColor = vec4(finalColor, uOpacity);
     }
 `;
+
+const arrowVertexShader = `
+    uniform vec3 uCameraPos;
+    varying vec2 vUv;
+    varying float vFactor;
+    
+    void main() {
+        vUv = uv;
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vec3 viewDir = normalize(uCameraPos - worldPos.xyz);
+        
+        vec3 localNormal = normalize(vec3(position.x, 0.0, position.z));
+        vec3 worldNormal = normalize(mat3(modelMatrix) * localNormal);
+        
+        vFactor = max(0.0, dot(viewDir, worldNormal));
+        
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+`;
+
+const arrowFragmentShader = `
+    uniform vec3 uColor;
+    uniform vec3 uBorderColor;
+    uniform float uOpacity;
+    uniform sampler2D uTexture;
+    
+    varying vec2 vUv;
+    varying float vFactor;
+    
+    void main() {
+        vec4 texColor = texture2D(uTexture, vUv);
+        if (texColor.a < 0.05) discard;
+        
+        float fillFactor = clamp((texColor.r - 0.4) / 0.6, 0.0, 1.0);
+        vec3 finalColor = mix(uBorderColor, uColor, fillFactor);
+        
+        gl_FragColor = vec4(finalColor, uOpacity * vFactor * texColor.a);
+    }
+`;
+
+let sharedArrowTexture = null;
+function getArrowTexture() {
+    if (sharedArrowTexture) return sharedArrowTexture;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const drawDoubleArrow = (centerX) => {
+        const arrowLength = 120;
+        const shaftWidth = 64;
+        const headWidth = 116;
+        const headLength = 50;
+
+        ctx.beginPath();
+        ctx.moveTo(centerX - arrowLength, 64);
+        ctx.lineTo(centerX - arrowLength + headLength, 64 - headWidth / 2);
+        ctx.lineTo(centerX - arrowLength + headLength, 64 - shaftWidth / 2);
+        ctx.lineTo(centerX + arrowLength - headLength, 64 - shaftWidth / 2);
+        ctx.lineTo(centerX + arrowLength - headLength, 64 - headWidth / 2);
+        ctx.lineTo(centerX + arrowLength, 64);
+        ctx.lineTo(centerX + arrowLength - headLength, 64 + headWidth / 2);
+        ctx.lineTo(centerX + arrowLength - headLength, 64 + shaftWidth / 2);
+        ctx.lineTo(centerX - arrowLength + headLength, 64 + shaftWidth / 2);
+        ctx.lineTo(centerX - arrowLength + headLength, 64 + headWidth / 2);
+        ctx.closePath();
+    };
+
+    // Al dibujarlo solo en 512, la flecha queda exactamente en el centro de la geometría,
+    // garantizando que las puntas se formen de manera natural sin cortar el aro base.
+    drawDoubleArrow(512);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#666666';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    sharedArrowTexture = new THREE.CanvasTexture(canvas);
+    sharedArrowTexture.anisotropy = 4;
+    return sharedArrowTexture;
+}
 
 const gizmoGroup = new THREE.Group();
 gizmoGroup.name = '__rotationGizmo__';
@@ -112,44 +254,41 @@ const rings = {};
 
 function createRing(axis, eulerRotation) {
     const group = new THREE.Group();
-    
-    // 2 Half Ribbons (No gap)
     const partsCount = 2;
-    const gapAngle = 0; // 0 degrees gap
-    const thetaLength = (Math.PI * 2 / partsCount) - gapAngle; // 180 degrees
-    
+    const hasSticker = (axis === 'x' || axis === 'y'); // Solo Morado y Azul
+
     const partsList = [];
     for (let i = 0; i < partsCount; i++) {
-        // Para mantener los cortes exactamente iguales en el espacio 3D para ambas geometrías:
-        let offsetRibbon = (axis === 'x' || axis === 'y') ? (Math.PI / 2) : 0;
-        
-        // El desfase de la arandela debe ajustarse para que i=0 coincida físicamente con el i=0 del listón
-        let offsetDisk = (axis === 'z') ? (-Math.PI / 2) : 0;
-        
-        const startAngleRibbon = (i * Math.PI * 2 / partsCount) + (gapAngle / 2) + offsetRibbon;
-        const startAngleDisk = (i * Math.PI * 2 / partsCount) + (gapAngle / 2) + offsetDisk;
-        
-        // Ribbon (CylinderGeometry)
+        // Al aplicar PI/2 a TODOS, logramos las divisiones lógicas perfectas:
+        // Morado/Azul = Atrás/Adelante. Verde = Arriba/Abajo.
+        let offsetRibbon = Math.PI / 2;
+        let offsetDisk = offsetRibbon - (Math.PI / 2); // Queda en 0
+
+        const startAngleRibbon = (i * Math.PI) + offsetRibbon;
+        const startAngleDisk = (i * Math.PI) + offsetDisk;
+        const thetaLength = Math.PI;
+
         const geoRibbon = new THREE.CylinderGeometry(RADIUS, RADIUS, RIBBON_WIDTH, 64, 1, true, startAngleRibbon, thetaLength);
         const hitGeoRibbon = new THREE.CylinderGeometry(RADIUS, RADIUS, HIT_TUBE, 16, 1, true, startAngleRibbon, thetaLength);
-        
-        // Disk (RingGeometry)
-        const geoDisk = new THREE.RingGeometry(RADIUS - RIBBON_WIDTH / 2, RADIUS + RIBBON_WIDTH / 2, 64, 1, startAngleDisk, thetaLength);
+
+        // Se necesita margen extra en la geometría para que el shader pueda pintar la flecha ancha
+        const geoDisk = new THREE.RingGeometry(RADIUS - RIBBON_WIDTH, RADIUS + RIBBON_WIDTH, 64, 1, startAngleDisk, thetaLength);
         const hitGeoDisk = new THREE.RingGeometry(RADIUS - HIT_TUBE / 2, RADIUS + HIT_TUBE / 2, 16, 1, startAngleDisk, thetaLength);
-        
-        partsList.push({ geoRibbon, geoDisk, hitGeoRibbon, hitGeoDisk, id: `${axis}_${i}` });
+
+        const geoArrow = new THREE.CylinderGeometry(RADIUS + 0.0005, RADIUS + 0.0005, RIBBON_WIDTH * 2, 64, 1, true, startAngleRibbon, thetaLength);
+
+        partsList.push({ geoRibbon, geoDisk, geoArrow, hitGeoRibbon, hitGeoDisk, id: `${axis}_${i}`, startAngleDisk });
     }
 
-    const halves = []; // We keep the array name "halves"
-    
+    const halves = [];
+
     partsList.forEach((half) => {
-        // MATERIAL 1: Ribbon
         const matRibbon = new THREE.ShaderMaterial({
             vertexShader: ringVertexShader,
             fragmentShader: ringFragmentShader,
             uniforms: {
                 uColor: { value: AXIS_COLORS[axis].clone() },
-                uHoverColor: { value: COLOR_HOVER.clone() },
+                uBorderColor: { value: AXIS_COLORS[axis].clone().multiplyScalar(0.4) },
                 uOpacity: { value: 0.9 },
                 uCameraPos: { value: new THREE.Vector3() }
             },
@@ -161,53 +300,81 @@ function createRing(axis, eulerRotation) {
         meshRibbon.renderOrder = 301;
         group.add(meshRibbon);
 
-        // MATERIAL 2: Disk
         const matDisk = new THREE.ShaderMaterial({
             vertexShader: diskVertexShader,
             fragmentShader: diskFragmentShader,
             uniforms: {
                 uColor: { value: AXIS_COLORS[axis].clone() },
-                uOpacity: { value: 0.9 }
+                uBorderColor: { value: AXIS_COLORS[axis].clone().multiplyScalar(0.4) },
+                uOpacity: { value: 0.9 },
+                uIsActive: { value: 0.0 },
+                uHasArrow: { value: hasSticker ? 1.0 : 0.0 }, // Define si este disco se deforma
+                uStartAngle: { value: half.startAngleDisk },
+                uRadius: { value: RADIUS },
+                uRibbonWidth: { value: RIBBON_WIDTH },
+                uHeadWidth: { value: RIBBON_WIDTH * 2 },
+                uArrowTipDist: { value: ARROW_TIP_DIST_WORLD },
+                uArrowBaseDist: { value: ARROW_BASE_DIST_WORLD },
+                uHeadHalfWidthRatio: { value: ARROW_HEAD_HALF_WIDTH_RATIO }
             },
             side: THREE.DoubleSide,
             transparent: true,
             depthTest: false
         });
         const meshDisk = new THREE.Mesh(half.geoDisk, matDisk);
-        // Rotate disk so its normal is Local Y (same axis as Ribbon)
         meshDisk.rotation.x = -Math.PI / 2;
         meshDisk.renderOrder = 301;
         group.add(meshDisk);
 
-        // HIT MESHES (Invisible)
+        let matArrow = null;
+        if (hasSticker) {
+            matArrow = new THREE.ShaderMaterial({
+                vertexShader: arrowVertexShader,
+                fragmentShader: arrowFragmentShader,
+                uniforms: {
+                    uColor: { value: AXIS_COLORS[axis].clone() },
+                    uBorderColor: { value: AXIS_COLORS[axis].clone().multiplyScalar(0.4) },
+                    uOpacity: { value: 0.9 },
+                    uCameraPos: { value: new THREE.Vector3() },
+                    uTexture: { value: getArrowTexture() }
+                },
+                side: THREE.DoubleSide,
+                transparent: true,
+                depthTest: false
+            });
+            const meshArrow = new THREE.Mesh(half.geoArrow, matArrow);
+            meshArrow.renderOrder = 302;
+            group.add(meshArrow);
+        }
+
         const hitMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
-        
+
         const hitMeshRibbon = new THREE.Mesh(half.hitGeoRibbon, hitMat);
         hitMeshRibbon.name = '__rotationHit_' + half.id + '_ribbon';
-        hitMeshRibbon.userData.axis = axis; 
-        hitMeshRibbon.userData.halfId = half.id; 
+        hitMeshRibbon.userData.axis = axis;
+        hitMeshRibbon.userData.halfId = half.id;
         group.add(hitMeshRibbon);
-        
+
         const hitMeshDisk = new THREE.Mesh(half.hitGeoDisk, hitMat);
         hitMeshDisk.name = '__rotationHit_' + half.id + '_disk';
-        hitMeshDisk.userData.axis = axis; 
-        hitMeshDisk.userData.halfId = half.id; 
+        hitMeshDisk.userData.axis = axis;
+        hitMeshDisk.userData.halfId = half.id;
         hitMeshDisk.rotation.x = -Math.PI / 2;
         group.add(hitMeshDisk);
 
-        halves.push({ matRibbon, matDisk, hitMeshRibbon, hitMeshDisk, id: half.id, axis });
+        halves.push({ matRibbon, matDisk, matArrow, hitMeshRibbon, hitMeshDisk, id: half.id, axis });
     });
 
     group.rotation.copy(eulerRotation);
     gizmoGroup.add(group);
-    
+
     rings[axis] = { group, halves };
     return group;
 }
 
-createRing('y', new THREE.Euler(0, 0, 0)); // Y axis (default)
-createRing('x', new THREE.Euler(0, 0, Math.PI / 2)); // X axis (rotated around Z)
-createRing('z', new THREE.Euler(Math.PI / 2, 0, 0)); // Z axis (rotated around X)
+createRing('y', new THREE.Euler(0, 0, 0));             // Azul (Eje Z CAD)
+createRing('x', new THREE.Euler(0, 0, Math.PI / 2));   // Morado (Eje X CAD)
+createRing('z', new THREE.Euler(Math.PI / 2, 0, 0));   // Verde (Eje Y CAD)
 
 scene.add(gizmoGroup);
 
@@ -222,7 +389,7 @@ export const RotationGizmo = {
             return;
         }
         attachedMesh = mesh;
-        
+
         gizmoGroup.visible = true;
         this.update();
         this.setHover(null);
@@ -236,15 +403,15 @@ export const RotationGizmo = {
 
     update() {
         if (!attachedMesh || !gizmoGroup.visible) return;
-        
+
         const { center } = getObjectBounds(attachedMesh);
         gizmoGroup.position.copy(center);
-        gizmoGroup.quaternion.identity(); // Global orientation
+        gizmoGroup.quaternion.identity();
     },
 
     hitTest(raycaster) {
         if (!gizmoGroup.visible) return null;
-        
+
         let allHitMeshes = [];
         ['x', 'y', 'z'].forEach(a => {
             if (!rings[a]) return;
@@ -253,9 +420,9 @@ export const RotationGizmo = {
                 if (half.hitMeshDisk) allHitMeshes.push(half.hitMeshDisk);
             });
         });
-        
+
         const intersects = raycaster.intersectObjects(allHitMeshes, false);
-        
+
         if (intersects.length > 0) {
             const hit = intersects[0].object;
             return {
@@ -283,41 +450,56 @@ export const RotationGizmo = {
         ['x', 'y', 'z'].forEach(a => {
             if (!rings[a]) return;
             const isAxisActive = currentActive && currentActive.startsWith(a);
-            
+
             rings[a].halves.forEach(half => {
                 const baseColor = AXIS_COLORS[a];
-                
-                let targetColor = baseColor;
-                let targetOpacity = 0.7;
-                
+                const hoverColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.6);
+                const normalBorder = baseColor.clone().multiplyScalar(0.4);
+
+                let targetColor, targetBorderColor, targetOpacity, targetShowArrowHead;
+
                 if (currentActive) {
-                    // Dragging mode
                     const isActiveHalf = (half.id === currentActive);
-                    targetColor = baseColor;
+                    targetColor = isActiveHalf ? hoverColor : baseColor;
+                    targetBorderColor = isActiveHalf ? baseColor : normalBorder;
                     targetOpacity = isActiveHalf ? 1.0 : 0.15;
+                    targetShowArrowHead = isActiveHalf;
                 } else {
-                    // Normal hover mode
                     const isHoveredHalf = (half.id === currentHover);
-                    targetColor = isHoveredHalf ? COLOR_HOVER : baseColor;
-                    targetOpacity = isHoveredHalf ? 1.0 : 1.0;
+                    targetColor = isHoveredHalf ? hoverColor : baseColor;
+                    targetBorderColor = isHoveredHalf ? baseColor : normalBorder;
+                    targetOpacity = isHoveredHalf ? 1.0 : 0.96;
+                    targetShowArrowHead = false;
                 }
-                
+
                 half.matRibbon.uniforms.uColor.value.copy(targetColor);
+                half.matRibbon.uniforms.uBorderColor.value.copy(targetBorderColor);
                 half.matRibbon.uniforms.uOpacity.value = targetOpacity;
-                
+
                 half.matDisk.uniforms.uColor.value.copy(targetColor);
+                half.matDisk.uniforms.uBorderColor.value.copy(targetBorderColor);
                 half.matDisk.uniforms.uOpacity.value = targetOpacity;
+                half.matDisk.uniforms.uIsActive.value = targetShowArrowHead ? 1.0 : 0.0;
+
+                if (half.matArrow) {
+                    half.matArrow.uniforms.uColor.value.copy(targetColor);
+                    half.matArrow.uniforms.uBorderColor.value.copy(targetBorderColor);
+                    half.matArrow.uniforms.uOpacity.value = targetOpacity;
+                }
             });
         });
     },
-    
+
     updateCamera(camera) {
         if (!gizmoGroup.visible) return;
-        
+
         ['x', 'y', 'z'].forEach(a => {
             if (!rings[a]) return;
             rings[a].halves.forEach(half => {
                 half.matRibbon.uniforms.uCameraPos.value.copy(camera.position);
+                if (half.matArrow) {
+                    half.matArrow.uniforms.uCameraPos.value.copy(camera.position);
+                }
             });
         });
     },
