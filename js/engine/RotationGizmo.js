@@ -11,10 +11,9 @@ import { getObjectBounds } from './MoveHandle.js';
  * - X (Morado/Rojo): El eje apunta hacia el lado derecho (corresponde al eje X en Three.js).
  * 
  * ROTACIÓN Y SEGMENTOS:
- * Al fijar offsetRibbon = Math.PI / 2 para todos, logramos los cortes lógicos correctos:
- * - Morado ('x'): Se corta Arriba/Abajo. Nos da segmentos Frontal y Trasero (Atrás/Adelante).
- * - Azul ('y'): Se corta Izquierda/Derecha. Nos da segmentos Frontal y Trasero (Atrás/Adelante).
- * - Verde ('z'): Se corta Izquierda/Derecha. Nos da segmentos Arriba y Abajo.
+ * - Morado ('x'): offsetRibbon = Math.PI / 2. Nos da segmentos Frontal y Trasero (Atrás/Adelante).
+ * - Azul ('y'): offsetRibbon = Math.PI / 2. Nos da segmentos Frontal y Trasero (Atrás/Adelante).
+ * - Verde ('z'): offsetRibbon = 0. Nos da segmentos separados Izquierda/Derecha.
  * 
  * EL STICKER (FLECHA):
  * Se dibuja en el CENTRO absoluto de cada segmento. 
@@ -259,10 +258,11 @@ function createRing(axis, eulerRotation) {
 
     const partsList = [];
     for (let i = 0; i < partsCount; i++) {
-        // Al aplicar PI/2 a TODOS, logramos las divisiones lógicas perfectas:
-        // Morado/Azul = Atrás/Adelante. Verde = Arriba/Abajo.
-        let offsetRibbon = Math.PI / 2;
-        let offsetDisk = offsetRibbon - (Math.PI / 2); // Queda en 0
+        // CORRECCIÓN ESPECÍFICA DE CORTES LÓGICOS:
+        // El Verde ('z') recibe offset 0 para separarlo Izquierda/Derecha.
+        // Morado ('x') y Azul ('y') mantienen Math.PI/2 para separarlos Adelante/Atrás.
+        let offsetRibbon = (axis === 'z') ? 0 : (Math.PI / 2);
+        let offsetDisk = offsetRibbon - (Math.PI / 2); // Alineado con su ribbon
 
         const startAngleRibbon = (i * Math.PI) + offsetRibbon;
         const startAngleDisk = (i * Math.PI) + offsetDisk;
@@ -271,7 +271,7 @@ function createRing(axis, eulerRotation) {
         const geoRibbon = new THREE.CylinderGeometry(RADIUS, RADIUS, RIBBON_WIDTH, 64, 1, true, startAngleRibbon, thetaLength);
         const hitGeoRibbon = new THREE.CylinderGeometry(RADIUS, RADIUS, HIT_TUBE, 16, 1, true, startAngleRibbon, thetaLength);
 
-        // Se necesita margen extra en la geometría para que el shader pueda pintar la flecha ancha
+        // Geometría ensanchada para darle espacio al shader de pintar la flecha
         const geoDisk = new THREE.RingGeometry(RADIUS - RIBBON_WIDTH, RADIUS + RIBBON_WIDTH, 64, 1, startAngleDisk, thetaLength);
         const hitGeoDisk = new THREE.RingGeometry(RADIUS - HIT_TUBE / 2, RADIUS + HIT_TUBE / 2, 16, 1, startAngleDisk, thetaLength);
 
@@ -308,7 +308,11 @@ function createRing(axis, eulerRotation) {
                 uBorderColor: { value: AXIS_COLORS[axis].clone().multiplyScalar(0.4) },
                 uOpacity: { value: 0.9 },
                 uIsActive: { value: 0.0 },
-                uHasArrow: { value: hasSticker ? 1.0 : 0.0 }, // Define si este disco se deforma
+
+                // LA SOLUCIÓN: Fijar esto en 1.0 para que TODO disco forme flecha geométrica al arrastrar, 
+                // incluso el Verde (que antes quedaba en 0.0 porque no tiene textura sticker).
+                uHasArrow: { value: 1.0 },
+
                 uStartAngle: { value: half.startAngleDisk },
                 uRadius: { value: RADIUS },
                 uRibbonWidth: { value: RIBBON_WIDTH },
@@ -479,6 +483,7 @@ export const RotationGizmo = {
                 half.matDisk.uniforms.uColor.value.copy(targetColor);
                 half.matDisk.uniforms.uBorderColor.value.copy(targetBorderColor);
                 half.matDisk.uniforms.uOpacity.value = targetOpacity;
+
                 half.matDisk.uniforms.uIsActive.value = targetShowArrowHead ? 1.0 : 0.0;
 
                 if (half.matArrow) {
