@@ -14,6 +14,7 @@ import { Registry } from '../core/Registry.js';
 import { PersonasEngine } from './PersonasEngine.js';
 import { updateLoop as updateSelectionLoop } from './SelectionRenderer.js';
 import { RotationGizmo } from './RotationGizmo.js';
+import { RulerOverlay } from './RulerOverlay.js';
 
 let gizmoRef = null;
 let containerRef = null;
@@ -97,6 +98,15 @@ export function renderFrame() {
         renderer.setViewport(0, 0, containerRef.clientWidth, containerRef.clientHeight);
         renderer.setScissorTest(false);
         renderer.render(scene, camOrthoMain);
+
+        // Feed camera data to ruler overlay
+        RulerOverlay.setCameraData({
+            left: camOrthoMain.left,
+            right: camOrthoMain.right,
+            top: camOrthoMain.top,
+            bottom: camOrthoMain.bottom,
+            zoom: camOrthoMain.zoom
+        }, activeMode);
     } else {
         splitViews.forEach(v => v.ctrl.update());
         const w = containerRef.clientWidth, h = containerRef.clientHeight;
@@ -106,7 +116,7 @@ export function renderFrame() {
             const vb = Math.floor(h * v.bottom);
             const vw = Math.floor(w * v.width);
             const vh = Math.floor(h * v.height);
-            
+
             if (grid) grid.visible = (v.mode !== 'left' && v.mode !== 'right' && v.mode !== 'front');
             updateDimsVisibility(v.mode);
             renderer.setViewport(vl, vb, vw, vh);
@@ -114,6 +124,30 @@ export function renderFrame() {
             renderer.render(scene, v.cam);
         });
         renderer.setScissorTest(false);
+
+        // Feed split quadrant data to ruler overlay
+        const quadrants = splitViews.map(v => {
+            const qw = Math.floor(w * v.width);
+            const qh = Math.floor(h * v.height);
+            // splitViews uses bottom-up coords; convert to top-down for the overlay
+            const qLeft = Math.floor(w * v.left);
+            const qTop = h - Math.floor(h * v.bottom) - qh;
+            return {
+                left: qLeft,
+                top: qTop,
+                width: qw,
+                height: qh,
+                cameraData: {
+                    left: v.cam.left,
+                    right: v.cam.right,
+                    top: v.cam.top,
+                    bottom: v.cam.bottom,
+                    zoom: v.cam.zoom
+                },
+                viewMode: v.mode
+            };
+        });
+        RulerOverlay.setSplitData(quadrants);
     }
 }
 

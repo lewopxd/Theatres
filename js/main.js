@@ -19,6 +19,7 @@ import { setRaycasterFromEvent, getRaycaster, mapIntersectsToStructures } from '
 import { MinimalGizmo } from './engine/GizmoController.js';
 import { generateGrid } from './engine/GridGenerator.js';
 import { syncSelectionEdges } from './engine/SelectionRenderer.js';
+import { RulerOverlay } from './engine/RulerOverlay.js';
 
 // Theatre
 import { buildTheatre } from './theatre/TheatreFactory.js';
@@ -103,6 +104,11 @@ async function boot() {
     initViewport(container, gizmo);
     resizeCameras(container, State.get('is3DMode'), State.get('isSplit'));
 
+    // Init ruler overlay (autonomous engine)
+    RulerOverlay.init(container);
+    // Start hidden — will be shown when switching to 2D mode
+    RulerOverlay.setVisible(false);
+
     loaderComplete('viewport');
 
     // STEP 6: First frame
@@ -154,6 +160,18 @@ async function boot() {
 
     await loaderDismiss();
     startAnimationLoop();
+
+    // ── Ruler visibility logic (reacts to mode changes) ──
+    const updateRulerVisibility = () => {
+        const is3D = State.get('is3DMode');
+        const mode = State.get('active2DMode');
+        const isSplit = State.get('isSplit');
+        // Show rulers in 2D mode (not ortho), including split
+        RulerOverlay.setVisible(!is3D && (isSplit || mode !== 'ortho'));
+    };
+    EventBus.on('state:is3DMode', updateRulerVisibility);
+    EventBus.on('state:active2DMode', updateRulerVisibility);
+    EventBus.on('state:isSplit', updateRulerVisibility);
 }
 
 // ============================================================

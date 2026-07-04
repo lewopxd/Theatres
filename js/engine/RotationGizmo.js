@@ -19,6 +19,17 @@ import { getObjectBounds } from './MoveHandle.js';
  * Se dibuja en el CENTRO absoluto de cada segmento. 
  * Para el Azul y el Morado, el centro de sus segmentos Frontal/Trasero recae exactamente
  * sobre el eje Y CAD (Z de Three.js), que es su punto de intersección físico.
+ *
+ * RECORTE DE FLECHA EN EL ARO (RIBBON):
+ * Usa la MISMA técnica que el disco: se calcula la distancia angular (convertida a
+ * longitud de arco) desde los extremos del segmento (uStartAngle y uStartAngle + PI).
+ * La diferencia es puramente geométrica:
+ * - En el DISCO (plano, visto desde arriba) el ángulo sale de vLocalPos.xy y el ancho
+ *   de la flecha se mide sobre el RADIO (distFromCenter = r - uRadius).
+ * - En el ARO (cilindro visto de perfil) el ángulo sale de vLocalPos.xz (el plano de
+ *   la circunferencia del cilindro) y el ancho de la flecha se mide sobre el EJE Y
+ *   local del cilindro (distFromAxis = vLocalPos.y), que es donde vive el espesor
+ *   de la cinta.
  */
 
 // Gizmo configuration
@@ -32,6 +43,23 @@ const ARROW_TIP_DIST_WORLD = (120 / 1024) * ARROW_SEGMENT_ARC_LENGTH; // Donde t
 const ARROW_BASE_DIST_WORLD = (70 / 1024) * ARROW_SEGMENT_ARC_LENGTH; // Donde empieza la cabeza (ancho máximo)
 const ARROW_HEAD_HALF_WIDTH_RATIO = (116 / 128) / 2;
 
+// renderOrder base (orden normal, igual para todos los ejes) y el "boost"
+// que se aplica temporalmente al eje activo/hovereado para que sus mallas
+// (ribbon, disco y sticker) se dibujen por encima de las de los demás ejes,
+// sin importar el orden en que se crearon los grupos (y, x, z).
+const RENDER_ORDER_BASE = { ribbon: 301, disk: 301, arrow: 302 };
+const RENDER_ORDER_BOOST = 50;
+
+// HISTÉRESIS DE HOVER: cerca de la intersección visual entre dos segmentos
+// (aro+disco de ejes distintos, o incluso entre las dos mitades del mismo
+// aro), sus zonas de detección infladas (HIT_TUBE >> RIBBON_WIDTH) se
+// superponen. Sin esto, el raycaster puede alternar frame a frame cuál
+// objeto está "más cerca" por diferencias de subpíxel del mouse, causando
+// parpadeo de hover. Con esta tolerancia, si el segmento que YA estaba en
+// hover sigue entre los candidatos y su distancia es casi igual a la del
+// más cercano, nos quedamos con el que ya teníamos.
+const HOVER_HYSTERESIS = 0.015;
+
 const AXIS_COLORS = {
     x: new THREE.Color(0x9966ff), // Morado (Eje X CAD)
     y: new THREE.Color(0x33ccff), // Azul (Eje Z CAD)
@@ -43,8 +71,10 @@ const ringVertexShader = `
     uniform vec3 uCameraPos;
     varying float vFactor;
     varying float vLocalY;
+    varying vec3 vLocalPos;
     
     void main() {
+        vLocalPos = position;
         vLocalY = position.y / 0.02;
         vec4 worldPos = modelMatrix * vec4(position, 1.0);
         vec3 viewDir = normalize(uCameraPos - worldPos.xyz);
@@ -61,17 +91,86 @@ const ringFragmentShader = `
     uniform vec3 uColor;
     uniform vec3 uBorderColor;
     uniform float uOpacity;
+
+    // Uniforms para el recorte de flecha (misma técnica que el disco, pero
+    // CONVERGIENDO al ancho existente de la cinta en vez de ensancharlo,
+    // porque el aro no tiene geometría extra como el disco).
+    uniform float uIsActive;
+    uniform float uHasArrow;
+    uniform float uStartAngle;
+    uniform float uRibbonWidth;
+    uniform float uArrowTipDist;
+    uniform float uArrowBaseDist;
+
     varying float vFactor;
     varying float vLocalY;
+    varying vec3 vLocalPos;
 
     void main() {
-        float edge = abs(vLocalY);
+        const float TAU = 6.28318530718;
+        const float PI = 3.14159265359;
+
+        // El aro es un cilindro: su circunferencia vive en el plano X-Z local
+        // (el eje del cilindro es Y). OJO: CylinderGeometry en three.js genera
+        // sus vértices como x = r*sin(theta), z = r*cos(theta) — la convención
+        // INVERSA a RingGeometry (que usa x = r*cos(theta), y = r*sin(theta),
+        // por eso el disco usa atan(y,x)). Aquí el ángulo real de la malla es
+        // atan2(x, z), no atan2(z, x); si se invierte, el "extremo" calculado
+        // queda desfasado 90° y el recorte aparece en medio del segmento
+        // en vez de en las puntas.
+        float theta = atan(vLocalPos.x, vLocalPos.z);
+
+        // Las puntas de la flecha van en los EXTREMOS del segmento, igual que en el disco:
+        // en uStartAngle y en uStartAngle + PI.
+        float endAngleA = uStartAngle;
+        float endAngleB = uStartAngle + PI;
+
+        float dA = mod(abs(theta - endAngleA), TAU);
+        dA = min(dA, TAU - dA);
+        float dB = mod(abs(theta - endAngleB), TAU);
+        dB = min(dB, TAU - dB);
+
+        float distToEnd = min(dA, dB);
+
+        // Radio real del punto sobre el cilindro (≈ RADIUS constante)
+        float r = length(vLocalPos.xz);
+
+        // Distancia física a lo largo del arco desde el extremo (corte)
+        float arcLengthFromEnd = distToEnd * r;
+
+        // Ancho base de la cinta (medido en el eje Y local del cilindro, NO en el radio)
+        float currentHalfWidth = uRibbonWidth / 2.0;
+
+        float headLengthPhysical = uArrowTipDist - uArrowBaseDist;
+
+        if (uIsActive > 0.5 && uHasArrow > 0.5) {
+            if (arcLengthFromEnd < headLengthPhysical) {
+                // A diferencia del disco (que ensancha hacia un uHeadWidth mayor
+                // porque tiene geometría extra), el aro CONVERGE desde su propio
+                // ancho de cinta (uRibbonWidth/2) hasta 0 en la punta exacta.
+                // Esto produce el mismo perfil de punta triangular pero sin
+                // exceder el grosor físico real de la malla del aro.
+                float maxHalfW = uRibbonWidth / 2.0;
+                float arrowHalfWidth = (arcLengthFromEnd / headLengthPhysical) * maxHalfW;
+                currentHalfWidth = arrowHalfWidth;
+            }
+        }
+
+        // Distancia al eje del cilindro = espesor de la cinta en este punto
+        float distFromAxis = vLocalPos.y;
+
+        float aa = fwidth(distFromAxis) * 1.5 + 0.0005;
+        float mask = 1.0 - smoothstep(currentHalfWidth - aa, currentHalfWidth + aa, abs(distFromAxis));
+
+        if (mask < 0.5) discard;
+
+        float edge = abs(distFromAxis) / max(currentHalfWidth, 0.0001);
         float borderFactor = smoothstep(0.15, 0.95, edge);
         vec3 finalColor = mix(uColor, uBorderColor, borderFactor);
 
         float alphaScale = mix(0.2, 0.95, vFactor);
         float finalOpacity = mix(uOpacity * alphaScale, uOpacity * mix(0.4, 1.0, vFactor), borderFactor);
-        
+
         gl_FragColor = vec4(finalColor, finalOpacity);
     }
 `;
@@ -277,7 +376,12 @@ function createRing(axis, eulerRotation) {
 
         const geoArrow = new THREE.CylinderGeometry(RADIUS + 0.0005, RADIUS + 0.0005, RIBBON_WIDTH * 2, 64, 1, true, startAngleRibbon, thetaLength);
 
-        partsList.push({ geoRibbon, geoDisk, geoArrow, hitGeoRibbon, hitGeoDisk, id: `${axis}_${i}`, startAngleDisk });
+        partsList.push({
+            geoRibbon, geoDisk, geoArrow, hitGeoRibbon, hitGeoDisk,
+            id: `${axis}_${i}`,
+            startAngleRibbon,
+            startAngleDisk
+        });
     }
 
     const halves = [];
@@ -290,14 +394,24 @@ function createRing(axis, eulerRotation) {
                 uColor: { value: AXIS_COLORS[axis].clone() },
                 uBorderColor: { value: AXIS_COLORS[axis].clone().multiplyScalar(0.4) },
                 uOpacity: { value: 0.9 },
-                uCameraPos: { value: new THREE.Vector3() }
+                uCameraPos: { value: new THREE.Vector3() },
+
+                // Uniforms para el recorte de flecha (misma técnica que el disco,
+                // pero con el ángulo de inicio propio del ribbon y convergiendo
+                // a su propio ancho en vez de a un uHeadWidth externo).
+                uIsActive: { value: 0.0 },
+                uHasArrow: { value: 1.0 },
+                uStartAngle: { value: half.startAngleRibbon },
+                uRibbonWidth: { value: RIBBON_WIDTH },
+                uArrowTipDist: { value: ARROW_TIP_DIST_WORLD },
+                uArrowBaseDist: { value: ARROW_BASE_DIST_WORLD }
             },
             side: THREE.DoubleSide,
             transparent: true,
             depthTest: false
         });
         const meshRibbon = new THREE.Mesh(half.geoRibbon, matRibbon);
-        meshRibbon.renderOrder = 301;
+        meshRibbon.renderOrder = RENDER_ORDER_BASE.ribbon;
         group.add(meshRibbon);
 
         const matDisk = new THREE.ShaderMaterial({
@@ -327,10 +441,11 @@ function createRing(axis, eulerRotation) {
         });
         const meshDisk = new THREE.Mesh(half.geoDisk, matDisk);
         meshDisk.rotation.x = -Math.PI / 2;
-        meshDisk.renderOrder = 301;
+        meshDisk.renderOrder = RENDER_ORDER_BASE.disk;
         group.add(meshDisk);
 
         let matArrow = null;
+        let meshArrow = null;
         if (hasSticker) {
             matArrow = new THREE.ShaderMaterial({
                 vertexShader: arrowVertexShader,
@@ -346,8 +461,8 @@ function createRing(axis, eulerRotation) {
                 transparent: true,
                 depthTest: false
             });
-            const meshArrow = new THREE.Mesh(half.geoArrow, matArrow);
-            meshArrow.renderOrder = 302;
+            meshArrow = new THREE.Mesh(half.geoArrow, matArrow);
+            meshArrow.renderOrder = RENDER_ORDER_BASE.arrow;
             group.add(meshArrow);
         }
 
@@ -366,7 +481,12 @@ function createRing(axis, eulerRotation) {
         hitMeshDisk.rotation.x = -Math.PI / 2;
         group.add(hitMeshDisk);
 
-        halves.push({ matRibbon, matDisk, matArrow, hitMeshRibbon, hitMeshDisk, id: half.id, axis });
+        halves.push({
+            matRibbon, matDisk, matArrow,
+            meshRibbon, meshDisk, meshArrow,
+            hitMeshRibbon, hitMeshDisk,
+            id: half.id, axis
+        });
     });
 
     group.rotation.copy(eulerRotation);
@@ -427,15 +547,35 @@ export const RotationGizmo = {
 
         const intersects = raycaster.intersectObjects(allHitMeshes, false);
 
-        if (intersects.length > 0) {
-            const hit = intersects[0].object;
-            return {
-                axis: hit.userData.axis,
-                halfId: hit.userData.halfId,
-                point: intersects[0].point
-            };
+        if (intersects.length === 0) return null;
+
+        // intersectObjects ya devuelve los resultados ordenados por distancia
+        // ascendente, pero lo dejamos explícito por claridad.
+        intersects.sort((a, b) => a.distance - b.distance);
+
+        const closest = intersects[0];
+
+        // HISTÉRESIS: si el segmento que ya estaba en hover sigue siendo un
+        // candidato válido (el mouse sigue dentro de su zona de detección
+        // inflada) y su distancia es casi igual a la del más cercano, nos
+        // quedamos con el que ya teníamos en vez de saltar al nuevo. Esto
+        // evita el parpadeo cerca de las intersecciones entre segmentos.
+        if (currentHover) {
+            const stickyMatch = intersects.find(i => i.object.userData.halfId === currentHover);
+            if (stickyMatch && (stickyMatch.distance - closest.distance) < HOVER_HYSTERESIS) {
+                return {
+                    axis: stickyMatch.object.userData.axis,
+                    halfId: stickyMatch.object.userData.halfId,
+                    point: stickyMatch.point
+                };
+            }
         }
-        return null;
+
+        return {
+            axis: closest.object.userData.axis,
+            halfId: closest.object.userData.halfId,
+            point: closest.point
+        };
     },
 
     setActiveAxis(halfId) {
@@ -451,9 +591,18 @@ export const RotationGizmo = {
     },
 
     _updateVisuals() {
+        // Determina qué EJE completo está resaltado (por drag activo o por hover),
+        // para poder subir el renderOrder de TODAS sus mallas (ribbon, disco y
+        // sticker, en ambas mitades) por encima de los demás ejes. Sin esto, el
+        // orden de dibujo depende del orden de creación de los grupos (y, x, z)
+        // y un sticker de otro eje puede tapar el hover/drag del eje actual.
+        const highlightedId = currentActive || currentHover;
+        const highlightedAxis = highlightedId ? highlightedId.split('_')[0] : null;
+
         ['x', 'y', 'z'].forEach(a => {
             if (!rings[a]) return;
             const isAxisActive = currentActive && currentActive.startsWith(a);
+            const axisBoost = (highlightedAxis === a) ? RENDER_ORDER_BOOST : 0;
 
             rings[a].halves.forEach(half => {
                 const baseColor = AXIS_COLORS[a];
@@ -476,9 +625,17 @@ export const RotationGizmo = {
                     targetShowArrowHead = false;
                 }
 
+                half.meshRibbon.renderOrder = RENDER_ORDER_BASE.ribbon + axisBoost;
+                half.meshDisk.renderOrder = RENDER_ORDER_BASE.disk + axisBoost;
+                if (half.meshArrow) {
+                    half.meshArrow.renderOrder = RENDER_ORDER_BASE.arrow + axisBoost;
+                }
+
                 half.matRibbon.uniforms.uColor.value.copy(targetColor);
                 half.matRibbon.uniforms.uBorderColor.value.copy(targetBorderColor);
                 half.matRibbon.uniforms.uOpacity.value = targetOpacity;
+                // Igual que en el disco: solo el aro activo muestra la punta de flecha recortada.
+                half.matRibbon.uniforms.uIsActive.value = targetShowArrowHead ? 1.0 : 0.0;
 
                 half.matDisk.uniforms.uColor.value.copy(targetColor);
                 half.matDisk.uniforms.uBorderColor.value.copy(targetBorderColor);
