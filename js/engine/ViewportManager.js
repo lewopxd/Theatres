@@ -72,6 +72,59 @@ function updateDimsVisibility(mode) {
 }
 
 /**
+ * Compute exact world bounds visible in an orthographic camera
+ * using Three.js unproject. This guarantees pixel-perfect mapping
+ * because it accounts for camera position, target, zoom, orientation.
+ *
+ * @param {THREE.OrthographicCamera} cam
+ * @param {string} mode — 'top'|'bottom'|'front'|'left'|'right'
+ * @returns {Object|null} { worldMinH, worldMaxH, worldMinV, worldMaxV, hLabel, vLabel }
+ */
+function getWorldBoundsForRuler(cam, mode) {
+    if (mode === 'ortho') return null;
+
+    cam.updateMatrixWorld();
+    cam.updateProjectionMatrix();
+
+    // Unproject NDC edge midpoints to world space
+    // NDC (-1, 0, 0) = left edge center
+    // NDC (1, 0, 0)  = right edge center
+    // NDC (0, 1, 0)  = top edge center
+    // NDC (0, -1, 0) = bottom edge center
+    const wL = new THREE.Vector3(-1, 0, 0).unproject(cam);
+    const wR = new THREE.Vector3(1, 0, 0).unproject(cam);
+    const wT = new THREE.Vector3(0, 1, 0).unproject(cam);
+    const wB = new THREE.Vector3(0, -1, 0).unproject(cam);
+
+    let worldMinH, worldMaxH, worldMinV, worldMaxV;
+    let hLabel, vLabel;
+
+    switch (mode) {
+        case 'top':
+        case 'bottom':
+            worldMinH = wL.x; worldMaxH = wR.x;
+            worldMinV = wT.z; worldMaxV = wB.z;
+            hLabel = 'X'; vLabel = 'Z';
+            break;
+        case 'front':
+            worldMinH = wL.x; worldMaxH = wR.x;
+            worldMinV = wT.y; worldMaxV = wB.y;
+            hLabel = 'X'; vLabel = 'Y';
+            break;
+        case 'left':
+        case 'right':
+            worldMinH = wL.z; worldMaxH = wR.z;
+            worldMinV = wT.y; worldMaxV = wB.y;
+            hLabel = 'Z'; vLabel = 'Y';
+            break;
+        default:
+            return null;
+    }
+
+    return { worldMinH, worldMaxH, worldMinV, worldMaxV, hLabel, vLabel };
+}
+
+/**
  * One animation frame — called by requestAnimationFrame
  */
 export function renderFrame() {
@@ -99,14 +152,9 @@ export function renderFrame() {
         renderer.setScissorTest(false);
         renderer.render(scene, camOrthoMain);
 
-        // Feed camera data to ruler overlay
-        RulerOverlay.setCameraData({
-            left: camOrthoMain.left,
-            right: camOrthoMain.right,
-            top: camOrthoMain.top,
-            bottom: camOrthoMain.bottom,
-            zoom: camOrthoMain.zoom
-        }, activeMode);
+        // Feed exact world bounds to ruler overlay (via unproject)
+        const bounds = getWorldBoundsForRuler(camOrthoMain, activeMode);
+        if (bounds) RulerOverlay.setCameraData(bounds);
     } else {
         splitViews.forEach(v => v.ctrl.update());
         const w = containerRef.clientWidth, h = containerRef.clientHeight;
@@ -125,26 +173,19 @@ export function renderFrame() {
         });
         renderer.setScissorTest(false);
 
-        // Feed split quadrant data to ruler overlay
+        // Feed split quadrant data with exact world bounds
         const quadrants = splitViews.map(v => {
             const qw = Math.floor(w * v.width);
             const qh = Math.floor(h * v.height);
-            // splitViews uses bottom-up coords; convert to top-down for the overlay
             const qLeft = Math.floor(w * v.left);
             const qTop = h - Math.floor(h * v.bottom) - qh;
+            const bounds = getWorldBoundsForRuler(v.cam, v.mode);
             return {
                 left: qLeft,
                 top: qTop,
                 width: qw,
                 height: qh,
-                cameraData: {
-                    left: v.cam.left,
-                    right: v.cam.right,
-                    top: v.cam.top,
-                    bottom: v.cam.bottom,
-                    zoom: v.cam.zoom
-                },
-                viewMode: v.mode
+                data: bounds
             };
         });
         RulerOverlay.setSplitData(quadrants);
