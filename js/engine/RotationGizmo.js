@@ -63,7 +63,7 @@ const RENDER_ORDER_BOOST = 50;
 const HOVER_HYSTERESIS = 0.015;
 
 const AXIS_COLORS = {
-    x: new THREE.Color(0x9966ff), // Morado (Eje X CAD)
+    x: new THREE.Color(0xd24dff), // Morado rojizo (Eje X CAD)
     y: new THREE.Color(0x33ccff), // Azul (Eje Z CAD)
     z: new THREE.Color(0x33e6cc)  // Verde (Eje Y CAD)
 };
