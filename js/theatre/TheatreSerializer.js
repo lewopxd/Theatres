@@ -1,10 +1,12 @@
 // ============================================================
 // TheatreSerializer — Serializa/deserializa el estado completo
+// Adapted for new tree-container based layout
 // ============================================================
 
 import * as THREE from 'three';
 import { Registry } from '../core/Registry.js';
 import { baseBgColor } from '../engine/SceneManager.js';
+import { State } from '../core/State.js';
 
 /**
  * Serialize the current theatre state to a plain object
@@ -61,10 +63,8 @@ export function serializeState() {
             };
         }),
         bg: baseBgColor.getHex(),
-        tArq: document.getElementById('tree-arq')?.innerHTML || '',
-        tEsc: document.getElementById('tree-esc')?.innerHTML || '',
-        tEq: document.getElementById('tree-eq')?.innerHTML || '',
-        tPer: document.getElementById('tree-per')?.innerHTML || ''
+        tree: document.getElementById('tree-container')?.innerHTML || '',
+        activeCategory: State.get('activeCategory') || 'arquitectura'
     };
 }
 

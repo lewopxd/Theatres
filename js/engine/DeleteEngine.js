@@ -70,9 +70,12 @@ export const DeleteEngine = {
         Registry.removeById(id);
 
         // Remover del DOM
-        const li = document.querySelector(`li[data-id="${id}"]`);
-        if (li) {
-            li.remove();
+        const treeNode = document.querySelector(`.tree-node[data-id="${id}"]`);
+        if (treeNode) {
+            // Remove the wrapper div (parent of .tree-node)
+            const wrapper = treeNode.parentElement;
+            if (wrapper) wrapper.remove();
+            else treeNode.remove();
         }
     },
 
@@ -82,18 +85,20 @@ export const DeleteEngine = {
     deleteGroup(groupLi) {
         if (!groupLi) return;
         
-        // Buscar todos los hijos que tengan data-id (meshes o subgrupos)
-        const descendants = groupLi.querySelectorAll('li[data-id]');
-        descendants.forEach(li => {
-            if (li.dataset.type === 'elemento') {
-                const mesh = Registry.findStructureById(li.dataset.id);
+        // groupLi is a .tree-node div; its parent is the wrapper containing .tree-children
+        const wrapper = groupLi.parentElement;
+        const descendants = wrapper ? wrapper.querySelectorAll('.tree-node[data-id]') : [];
+        descendants.forEach(node => {
+            if (node.dataset.type === 'elemento') {
+                const mesh = Registry.findStructureById(node.dataset.id);
                 if (mesh) {
                     this.deleteMesh(mesh);
                 }
             }
         });
 
-        // Eliminar el nodo padre final
-        groupLi.remove();
+        // Eliminar el nodo padre final (wrapper)
+        if (wrapper) wrapper.remove();
+        else groupLi.remove();
     }
 };

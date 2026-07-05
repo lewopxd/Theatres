@@ -1,5 +1,6 @@
 // ============================================================
 // TreeBuilder — Genera nodos del tree dinámicamente
+// Diseño idéntico al mockup CAD: chevrons, 4-slot grid, Phosphor Icons
 // ============================================================
 
 import * as THREE from 'three';
@@ -11,230 +12,438 @@ import { contextMenu } from './ContextMenuAPI.js';
 import { createIcons } from '../utils/dom.js';
 import { PersonasEngine } from '../engine/PersonasEngine.js';
 import { scene } from '../engine/SceneManager.js';
+import { userProject } from '../data/userProject.js';
+import { systemCatalog } from '../data/systemCatalog.js';
+
+// =====================================================================
+// RENDER TREE — Recursivo, idéntico al mockup
+// =====================================================================
 
 /**
- * Initialize the add buttons for Escenografía tab
+ * Render a tree from a nodes array into a container DOM element.
+ * @param {Array} nodes — array of node objects from userProject
+ * @param {HTMLElement} container — parent DOM element
+ * @param {number} level — nesting level (0 = root)
  */
+export function renderTree(nodes, container, level = 0) {
+    const ul = document.createElement('div');
+    if (level > 0) {
+        ul.classList.add('tree-children');
+    } else {
+        ul.classList.add('tree-children', 'open'); // Root always open
+    }
+
+    nodes.forEach(node => {
+        const itemDiv = document.createElement('div');
+
+        // === ROW ===
+        const row = document.createElement('div');
+        row.className = 'tree-node';
+        if (node.id) row.dataset.id = node.id;
+        if (node.type) row.dataset.type = node.type === 'folder' ? 'grupo' : 'elemento';
+
+        // --- LEFT PART (chevron + icon + name) ---
+        const leftPart = document.createElement('div');
+        leftPart.style.cssText = 'display:flex; align-items:center; flex:1; min-width:0; padding-right:2px;';
+
+        if (node.children) {
+            // Chevron for folders
+            const chevron = document.createElement('i');
+            chevron.className = 'ph ph-caret-right chevron';
+            leftPart.appendChild(chevron);
+
+            // Toggle open/close
+            row.addEventListener('click', (e) => {
+                // Don't toggle if clicking controls
+                if (e.target.closest('.tree-node-controls')) return;
+                e.stopPropagation();
+                chevron.classList.toggle('open');
+                const childrenDiv = itemDiv.querySelector(':scope > .tree-children');
+                if (childrenDiv) childrenDiv.classList.toggle('open');
+            });
+        } else {
+            // Spacer for leaf nodes (align with chevron)
+            const spacer = document.createElement('div');
+            spacer.className = 'chevron-spacer';
+            leftPart.appendChild(spacer);
+        }
+
+        // Type icon
+        const typeIcon = document.createElement('i');
+        const iconClass = node.icon || (node.type === 'folder' ? 'ph-folder' : 'ph-cube');
+        typeIcon.className = `ph ${iconClass} node-icon`;
+        leftPart.appendChild(typeIcon);
+
+        // Name
+        const textSpan = document.createElement('span');
+        textSpan.className = 'node-name';
+        textSpan.textContent = node.name;
+        leftPart.appendChild(textSpan);
+
+        row.appendChild(leftPart);
+
+        // --- RIGHT PART (4 control slots, 16px each) ---
+        const rightPart = document.createElement('div');
+        rightPart.className = 'tree-node-controls';
+        // Always visible if this node has a color dot
+        if (node.color) rightPart.classList.add('always-visible');
+
+        // Helper: create fixed-width slot
+        const createSlot = () => {
+            const slot = document.createElement('div');
+            slot.className = 'ctrl-slot';
+            return slot;
+        };
+
+        // SLOT 1: Add (+) — only for folders
+        const addSlot = createSlot();
+        if (node.type === 'folder') {
+            const addBtn = document.createElement('i');
+            addBtn.className = 'ph ph-plus ctrl-btn ctrl-add';
+            addBtn.title = `Añadir a ${node.name}`;
+            addBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                console.log(`[systemCatalog] Abrir catálogo para añadir a: ${node.name}`);
+            });
+            addSlot.appendChild(addBtn);
+        }
+        rightPart.appendChild(addSlot);
+
+        // SLOT 2: Visibility (Eye)
+        const eyeSlot = createSlot();
+        const eyeBtn = document.createElement('i');
+        eyeBtn.className = 'ph ph-eye ctrl-btn visibility-btn';
+        if (node.id) {
+            eyeBtn.dataset.target = node.id;
+            eyeBtn.dataset.isGroup = node.type === 'folder' ? 'true' : 'false';
+        }
+        eyeSlot.appendChild(eyeBtn);
+        rightPart.appendChild(eyeSlot);
+
+        // SLOT 3: Lock (Padlock)
+        const lockSlot = createSlot();
+        const lockBtn = document.createElement('i');
+        lockBtn.className = 'ph ph-lock-key ctrl-btn lock-btn is-locked';
+        if (node.id) {
+            lockBtn.dataset.target = node.id;
+            lockBtn.dataset.isGroup = node.type === 'folder' ? 'true' : 'false';
+        }
+        lockSlot.appendChild(lockBtn);
+        rightPart.appendChild(lockSlot);
+
+        // SLOT 4: Color dot
+        const colorSlot = createSlot();
+        if (node.color) {
+            const colorDot = document.createElement('div');
+            colorDot.className = 'color-dot';
+            colorDot.style.backgroundColor = node.color;
+            colorSlot.appendChild(colorDot);
+        }
+        rightPart.appendChild(colorSlot);
+
+        row.appendChild(rightPart);
+        itemDiv.appendChild(row);
+
+        // === RECURSE if children ===
+        if (node.children) {
+            renderTree(node.children, itemDiv, level + 1);
+        }
+
+        ul.appendChild(itemDiv);
+    });
+
+    container.appendChild(ul);
+}
+
+// =====================================================================
+// SWITCH CATEGORY — Cambia la pestaña activa y renderiza el árbol
+// =====================================================================
+
+/**
+ * Switch the active category tab and re-render the tree.
+ * @param {string} categoryId — 'arquitectura' | 'escena' | 'iluminacion' | 'personas'
+ */
+export function switchCategory(categoryId) {
+    // 1. Update tab visual state
+    document.querySelectorAll('.sidebar-tab-grid .tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeTab = document.getElementById('tab-' + categoryId);
+    if (activeTab) {
+        activeTab.classList.add('active');
+    }
+
+    // 2. Store active category in State
+    State.set('activeCategory', categoryId);
+
+    // 3. Clear and render tree from userProject
+    const container = document.getElementById('tree-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const categoryData = userProject[categoryId];
+    if (categoryData && categoryData.tree) {
+        renderTree(categoryData.tree, container);
+    }
+}
+
+// Make switchCategory available globally for onclick handlers in HTML
+window._switchCategory = switchCategory;
+
+// =====================================================================
+// INIT — Initialize tree system
+// =====================================================================
+
 export function initTreeBuilder() {
-    const btnAddEsc = document.querySelector('#tab-esc .btn-add-node');
-    if (btnAddEsc) {
-        btnAddEsc.addEventListener('click', e => {
-            e.stopPropagation();
-            const rect = btnAddEsc.getBoundingClientRect();
-            contextMenu.show(rect.left, rect.bottom + 5, [
-                { icon: 'folder', label: 'Grupo', action: () => { addTreeElement('Nuevo Grupo', 'folder', 'grupo'); History.save(); } },
-                { icon: 'box', label: 'Cubo', action: () => { addTreeElement('Cubo', 'box', 'box'); History.save(); } },
-                { icon: 'database', label: 'Cilindro', action: () => { addTreeElement('Cilindro', 'database', 'cylinder'); History.save(); } },
-                { icon: 'circle', label: 'Esfera', action: () => { addTreeElement('Esfera', 'circle', 'sphere'); History.save(); } },
-                { icon: 'triangle', label: 'Cono', action: () => { addTreeElement('Cono', 'triangle', 'cone'); History.save(); } },
-            ]);
-        });
-    }
-    const btnAddPer = document.querySelector('#tab-per .btn-add-node');
-    if (btnAddPer) {
-        btnAddPer.addEventListener('click', e => {
-            e.stopPropagation();
-            const rect = btnAddPer.getBoundingClientRect();
-            contextMenu.show(rect.left, rect.bottom + 5, [
-                { icon: 'user', label: 'Adult Male', action: () => { addPersonaElement('male'); } },
-                { icon: 'user', label: 'Adult Female', action: () => { addPersonaElement('female'); } }
-            ]);
-        });
-    }
-    
+    // Initial render
+    switchCategory('arquitectura');
+
+    // Expand the first folder by default for the demo
+    setTimeout(() => {
+        const firstChevron = document.querySelector('#tree-container .chevron');
+        if (firstChevron) firstChevron.click();
+    }, 100);
+
+    // Initialize add buttons for Escenografía and Personas (context menu)
+    initAddButtons();
     initDragAndDrop();
 }
 
+function initAddButtons() {
+    // These will work when the respective category is active
+    // For now, the (+) buttons on folder nodes log to console
+    // In the future, they'll open the systemCatalog context menu
+}
+
+// =====================================================================
+// DRAG AND DROP — Preserved from original
+// =====================================================================
+
 function initDragAndDrop() {
-    let draggedLi = null;
+    let draggedNode = null;
 
-    // Apply draggable to existing elements
-    document.querySelectorAll('.tree li[data-id]').forEach(li => {
-        li.setAttribute('draggable', 'true');
-    });
+    // Apply draggable to tree nodes with IDs
+    const applyDraggable = () => {
+        document.querySelectorAll('.tree-node[data-id]').forEach(node => {
+            node.setAttribute('draggable', 'true');
+        });
+    };
 
-    // We can use a MutationObserver to automatically make new tree nodes draggable
+    // MutationObserver to make new nodes draggable automatically
     const observer = new MutationObserver(mutations => {
         mutations.forEach(m => {
             m.addedNodes.forEach(node => {
-                if (node.nodeType === 1 && node.tagName === 'LI' && node.dataset.id) {
-                    node.setAttribute('draggable', 'true');
+                if (node.nodeType === 1) {
+                    const treeNodes = node.querySelectorAll ? node.querySelectorAll('.tree-node[data-id]') : [];
+                    treeNodes.forEach(tn => tn.setAttribute('draggable', 'true'));
+                    if (node.classList && node.classList.contains('tree-node') && node.dataset.id) {
+                        node.setAttribute('draggable', 'true');
+                    }
                 }
             });
         });
     });
-    document.querySelectorAll('.tree').forEach(tree => {
-        observer.observe(tree, { childList: true, subtree: true });
-    });
+    const treeContainer = document.getElementById('tree-container');
+    if (treeContainer) {
+        observer.observe(treeContainer, { childList: true, subtree: true });
+    }
+
+    applyDraggable();
 
     document.addEventListener('dragstart', e => {
-        const li = e.target.closest('li[data-id]');
-        if (li) {
-            draggedLi = li;
+        const node = e.target.closest('.tree-node[data-id]');
+        if (node) {
+            draggedNode = node.parentElement; // The wrapper div containing the row + children
             e.dataTransfer.effectAllowed = 'move';
-            li.classList.add('dragging');
+            node.classList.add('dragging');
         }
     });
 
     document.addEventListener('dragend', e => {
-        if (draggedLi) {
-            draggedLi.classList.remove('dragging');
-            draggedLi = null;
+        if (draggedNode) {
+            const row = draggedNode.querySelector('.tree-node');
+            if (row) row.classList.remove('dragging');
+            draggedNode = null;
         }
         document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     });
 
     document.addEventListener('dragover', e => {
-        if (!draggedLi) return;
+        if (!draggedNode) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        
-        const targetLi = e.target.closest('li[data-type="grupo"]');
-        if (targetLi && targetLi !== draggedLi && !draggedLi.contains(targetLi)) {
-            targetLi.querySelector('.tree-item').classList.add('drag-over');
+
+        const targetNode = e.target.closest('.tree-node[data-type="grupo"]');
+        if (targetNode && targetNode !== draggedNode.querySelector('.tree-node') && !draggedNode.contains(targetNode)) {
+            targetNode.classList.add('drag-over');
         }
     });
 
     document.addEventListener('dragleave', e => {
-        const targetLi = e.target.closest('li[data-type="grupo"]');
-        if (targetLi) {
-            const treeItem = targetLi.querySelector('.tree-item');
-            if (treeItem && !treeItem.contains(e.relatedTarget)) {
-                treeItem.classList.remove('drag-over');
-            }
+        const targetNode = e.target.closest('.tree-node[data-type="grupo"]');
+        if (targetNode && !targetNode.contains(e.relatedTarget)) {
+            targetNode.classList.remove('drag-over');
         }
     });
 
     document.addEventListener('drop', e => {
-        if (!draggedLi) return;
+        if (!draggedNode) return;
         e.preventDefault();
-        
-        const targetLi = e.target.closest('li[data-type="grupo"]');
-        if (targetLi && targetLi !== draggedLi && !draggedLi.contains(targetLi)) {
-            targetLi.querySelector('.tree-item').classList.remove('drag-over');
-            
-            // Move in DOM
-            let targetUl = targetLi.querySelector(':scope > ul.nested');
-            if (!targetUl) {
-                targetUl = document.createElement('ul');
-                targetUl.className = 'nested active-tree';
-                targetLi.appendChild(targetUl);
-                const pItem = targetLi.querySelector('.tree-item');
-                if (!pItem.querySelector('.caret')) {
-                    const c = document.createElement('span');
-                    c.className = 'caret caret-down';
-                    pItem.insertBefore(c, pItem.firstChild);
-                    const spacing = pItem.querySelector('span[style*="width:18px"]');
-                    if (spacing) spacing.remove();
-                }
+
+        const targetNode = e.target.closest('.tree-node[data-type="grupo"]');
+        if (targetNode && targetNode !== draggedNode.querySelector('.tree-node') && !draggedNode.contains(targetNode)) {
+            targetNode.classList.remove('drag-over');
+
+            // Find or create children container
+            const targetWrapper = targetNode.parentElement;
+            let targetChildren = targetWrapper.querySelector(':scope > .tree-children');
+            if (!targetChildren) {
+                targetChildren = document.createElement('div');
+                targetChildren.className = 'tree-children open';
+                targetWrapper.appendChild(targetChildren);
             }
-            targetUl.appendChild(draggedLi);
-            
-            // Re-calculate padding-left based on nesting level
-            updateTreeLevels(draggedLi.closest('.tree'));
-            
-            // Update userData in 3D Engine
-            const newGroupId = targetLi.dataset.id;
-            updateGroupDataRecursively(draggedLi, newGroupId);
-            
+            targetChildren.appendChild(draggedNode);
+
+            // Update 3D data
+            const newGroupId = targetNode.dataset.id;
+            const draggedRow = draggedNode.querySelector('.tree-node');
+            if (draggedRow && draggedRow.dataset.id && newGroupId) {
+                const mesh = Registry.findStructureById(draggedRow.dataset.id);
+                if (mesh) mesh.userData.group = newGroupId;
+            }
+
             History.save();
         }
     });
 }
 
-function updateTreeLevels(treeRoot) {
-    if (!treeRoot) return;
-    const items = treeRoot.querySelectorAll('li[data-id]');
-    items.forEach(li => {
-        let lvl = 1;
-        let cur = li.parentElement;
-        while (cur && cur.classList.contains('nested')) {
-            lvl++;
-            cur = cur.parentElement.parentElement?.closest('ul.nested');
-        }
-        const treeItem = li.querySelector('.tree-item');
-        if (treeItem) {
-            treeItem.style.paddingLeft = (lvl * 15 + 5) + 'px';
-        }
-    });
-}
+// =====================================================================
+// ADD ELEMENT — Creates new tree nodes + 3D objects (Escenografía tab)
+// =====================================================================
 
-function updateGroupDataRecursively(liElement, parentGroupId) {
-    const id = liElement.dataset.id;
-    const mesh = Registry.findStructureById(id);
-    if (mesh) {
-        mesh.userData.group = parentGroupId;
-    }
-    
-    // Update HTML dataset if needed, but it relies on DOM structure now
-    const layerControls = liElement.querySelector('.layer-controls');
-    if (layerControls) {
-        layerControls.querySelectorAll('button, input').forEach(el => {
-            el.dataset.parent = parentGroupId;
-        });
-    }
-
-    // If this is a group being moved, we don't change its children's parent, 
-    // because its children's parent is THIS group, not the new grandparent.
-}
+import { PlacementEngine } from '../engine/PlacementEngine.js';
 
 function addTreeElement(name, icon, type) {
-    let parentLi = State.get('selectedLi');
-    if (parentLi && parentLi.dataset.type !== 'grupo') parentLi = parentLi.parentElement.closest('li');
+    // Find parent folder if selected
+    let parentNode = document.querySelector('#tree-container .tree-node.selected[data-type="grupo"]');
+    let parentWrapper = parentNode ? parentNode.parentElement : null;
 
-    const li = document.createElement('li');
-    li.setAttribute('draggable', 'true');
-    const isGroup = type === 'grupo';
     const id = `item-${Date.now()}`;
-    li.dataset.type = isGroup ? 'grupo' : 'elemento';
-    li.dataset.id = id;
+    const isGroup = type === 'grupo';
 
-    let targetUl;
-    const activeTab = document.querySelector('.tab-content.active');
-    let lvl = 1;
-    let parentGroupId = 'escenografia';
+    // Create the wrapper div
+    const wrapperDiv = document.createElement('div');
 
-    if (parentLi) {
-        targetUl = parentLi.querySelector(':scope > ul.nested');
-        if (!targetUl) {
-            targetUl = document.createElement('ul');
-            targetUl.className = 'nested active-tree';
-            parentLi.appendChild(targetUl);
-            const pItem = parentLi.querySelector('.tree-item');
-            if (!pItem.querySelector('.caret')) {
-                const c = document.createElement('span');
-                c.className = 'caret caret-down';
-                pItem.insertBefore(c, pItem.firstChild);
-                const spacing = pItem.querySelector('span[style*="width:18px"]');
-                if (spacing) spacing.remove();
-            }
-        }
-        parentGroupId = parentLi.dataset.id || 'root';
-        let cur = targetUl;
-        while (cur && cur.classList.contains('nested')) {
-            lvl++;
-            cur = cur.parentElement.parentElement?.closest('ul.nested');
-        }
+    // Create the row
+    const row = document.createElement('div');
+    row.className = 'tree-node';
+    row.dataset.id = id;
+    row.dataset.type = isGroup ? 'grupo' : 'elemento';
+    row.setAttribute('draggable', 'true');
+
+    // Left part
+    const leftPart = document.createElement('div');
+    leftPart.style.cssText = 'display:flex; align-items:center; flex:1; min-width:0; padding-right:2px;';
+
+    if (isGroup) {
+        const chevron = document.createElement('i');
+        chevron.className = 'ph ph-caret-right chevron';
+        leftPart.appendChild(chevron);
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('.tree-node-controls')) return;
+            e.stopPropagation();
+            chevron.classList.toggle('open');
+            const childrenDiv = wrapperDiv.querySelector(':scope > .tree-children');
+            if (childrenDiv) childrenDiv.classList.toggle('open');
+        });
     } else {
-        targetUl = activeTab.querySelector('ul.tree');
+        const spacer = document.createElement('div');
+        spacer.className = 'chevron-spacer';
+        leftPart.appendChild(spacer);
     }
 
-    let html = `<div class="tree-item" style="padding-left: ${lvl * 15 + 5}px;">`;
-    html += isGroup ? '<span class="caret"></span>' : '<span style="width:18px; display:inline-block"></span>';
-    html += `<i data-lucide="${icon}" class="node-icon"></i> ${name} `;
+    const typeIcon = document.createElement('i');
+    typeIcon.className = `ph ph-${icon} node-icon`;
+    leftPart.appendChild(typeIcon);
 
-    const isGrpStr = isGroup ? 'data-is-group="true"' : '';
-    html += `<div class="layer-controls">
-        <button class="visibility-btn" data-target="${id}" data-parent="${parentGroupId}" ${isGrpStr}><i data-lucide="eye"></i></button>
-        <button class="lock-btn" data-target="${id}" data-parent="${parentGroupId}" ${isGrpStr}><i data-lucide="unlock"></i></button>
-        <input type="color" class="color-picker layer-picker" data-target="${id}" data-parent="${parentGroupId}" ${isGrpStr} value="#007acc">
-    </div></div>`;
+    const textSpan = document.createElement('span');
+    textSpan.className = 'node-name';
+    textSpan.textContent = name;
+    leftPart.appendChild(textSpan);
 
-    if (isGroup) html += `<ul class="nested active-tree"></ul>`;
-    li.innerHTML = html;
-    targetUl.appendChild(li);
-    createIcons({ root: li });
+    row.appendChild(leftPart);
 
+    // Right controls
+    const parentGroupId = parentNode ? (parentNode.dataset.id || 'root') : 'escenografia';
+    const rightPart = document.createElement('div');
+    rightPart.className = 'tree-node-controls always-visible';
+
+    const createSlot = () => { const s = document.createElement('div'); s.className = 'ctrl-slot'; return s; };
+
+    // Add slot
+    const addSlot = createSlot();
+    if (isGroup) {
+        const addBtn = document.createElement('i');
+        addBtn.className = 'ph ph-plus ctrl-btn ctrl-add';
+        addSlot.appendChild(addBtn);
+    }
+    rightPart.appendChild(addSlot);
+
+    // Eye
+    const eyeSlot = createSlot();
+    const eyeBtn = document.createElement('i');
+    eyeBtn.className = 'ph ph-eye ctrl-btn visibility-btn';
+    eyeBtn.dataset.target = id;
+    eyeBtn.dataset.parent = parentGroupId;
+    if (isGroup) eyeBtn.dataset.isGroup = 'true';
+    eyeSlot.appendChild(eyeBtn);
+    rightPart.appendChild(eyeSlot);
+
+    // Lock
+    const lockSlot = createSlot();
+    const lockBtn = document.createElement('i');
+    lockBtn.className = 'ph ph-lock-key-open ctrl-btn lock-btn';
+    lockBtn.dataset.target = id;
+    lockBtn.dataset.parent = parentGroupId;
+    if (isGroup) lockBtn.dataset.isGroup = 'true';
+    lockSlot.appendChild(lockBtn);
+    rightPart.appendChild(lockSlot);
+
+    // Color
+    const colorSlot = createSlot();
+    const colorDot = document.createElement('div');
+    colorDot.className = 'color-dot';
+    colorDot.style.backgroundColor = '#007acc';
+    colorSlot.appendChild(colorDot);
+    rightPart.appendChild(colorSlot);
+
+    row.appendChild(rightPart);
+    wrapperDiv.appendChild(row);
+
+    if (isGroup) {
+        const childrenDiv = document.createElement('div');
+        childrenDiv.className = 'tree-children open';
+        wrapperDiv.appendChild(childrenDiv);
+    }
+
+    // Insert into tree
+    let targetContainer;
+    if (parentWrapper) {
+        let childrenDiv = parentWrapper.querySelector(':scope > .tree-children');
+        if (!childrenDiv) {
+            childrenDiv = document.createElement('div');
+            childrenDiv.className = 'tree-children open';
+            parentWrapper.appendChild(childrenDiv);
+        }
+        targetContainer = childrenDiv;
+    } else {
+        // Append at root of tree-container
+        const rootChildren = document.querySelector('#tree-container > .tree-children');
+        targetContainer = rootChildren || document.getElementById('tree-container');
+    }
+    targetContainer.appendChild(wrapperDiv);
+
+    // Create 3D object for non-groups
     if (!isGroup) {
         let geo, params;
         switch (type) {
@@ -247,106 +456,130 @@ function addTreeElement(name, icon, type) {
         createStruct(geo, mat, '#007acc', id, parentGroupId, 0, 0.5, 0, 0, type, params);
     }
 }
-import { PlacementEngine } from '../engine/PlacementEngine.js';
+
+// =====================================================================
+// ADD PERSONA — Creates persona tree node + 3D model
+// =====================================================================
 
 export async function addPersonaElement(type) {
-    if (PersonasEngine.isSpawningAny()) {
-        return;
-    }
+    if (PersonasEngine.isSpawningAny()) return;
 
     if (!PlacementEngine.canSpawnPersona()) {
         alert('Límite máximo alcanzado: No puedes agregar más de ' + PlacementEngine.MAX_PERSONAS + ' personas para no sobrecargar el navegador.');
         return;
     }
 
-    let parentLi = State.get('selectedLi');
-    if (parentLi && parentLi.dataset.type !== 'grupo') parentLi = parentLi.parentElement.closest('li');
+    let parentNode = document.querySelector('#tree-container .tree-node.selected[data-type="grupo"]');
+    let parentWrapper = parentNode ? parentNode.parentElement : null;
 
-    const li = document.createElement('li');
-    li.setAttribute('draggable', 'true');
     const id = `item-${Date.now()}`;
-    li.dataset.type = 'elemento';
-    li.dataset.id = id;
-
-    let targetUl;
-    const activeTab = document.querySelector('#tab-per');
-    let lvl = 1;
-    let parentGroupId = 'personas';
-
-    if (parentLi && parentLi.closest('#tab-per')) {
-        targetUl = parentLi.querySelector(':scope > ul.nested');
-        if (!targetUl) {
-            targetUl = document.createElement('ul');
-            targetUl.className = 'nested active-tree';
-            parentLi.appendChild(targetUl);
-            const pItem = parentLi.querySelector('.tree-item');
-            if (!pItem.querySelector('.caret')) {
-                const c = document.createElement('span');
-                c.className = 'caret caret-down';
-                pItem.insertBefore(c, pItem.firstChild);
-                const spacing = pItem.querySelector('span[style*="width:18px"]');
-                if (spacing) spacing.remove();
-            }
-        }
-        parentGroupId = parentLi.dataset.id || 'personas';
-        let cur = targetUl;
-        while (cur && cur.classList.contains('nested')) {
-            lvl++;
-            cur = cur.parentElement.parentElement?.closest('ul.nested');
-        }
-    } else {
-        targetUl = activeTab.querySelector('ul.tree');
-    }
-
     const name = type === 'male' ? 'Adult Male' : 'Adult Female';
-    const icon = 'user';
-    let html = `<div class="tree-item" style="padding-left: ${lvl * 15 + 5}px;">`;
-    html += '<span style="width:18px; display:inline-block"></span>';
-    html += `<i data-lucide="${icon}" class="node-icon"></i> ${name} `;
-    
-    // Generar un color aleatorio para diferenciar
-    const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+    const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
+    const parentGroupId = parentNode ? (parentNode.dataset.id || 'personas') : 'personas';
 
-    html += `<div class="layer-controls">
-        <button class="visibility-btn" data-target="${id}" data-parent="${parentGroupId}"><i data-lucide="eye"></i></button>
-        <button class="lock-btn" data-target="${id}" data-parent="${parentGroupId}"><i data-lucide="unlock"></i></button>
-        <input type="color" class="color-picker layer-picker" data-target="${id}" data-parent="${parentGroupId}" value="${randomColor}">
-    </div></div>`;
+    // Create tree node
+    const wrapperDiv = document.createElement('div');
+    const row = document.createElement('div');
+    row.className = 'tree-node';
+    row.dataset.id = id;
+    row.dataset.type = 'elemento';
+    row.setAttribute('draggable', 'true');
 
-    li.innerHTML = html;
-    targetUl.appendChild(li);
-    createIcons({ root: li });
+    const leftPart = document.createElement('div');
+    leftPart.style.cssText = 'display:flex; align-items:center; flex:1; min-width:0; padding-right:2px;';
 
-    // Load Persona
+    const spacer = document.createElement('div');
+    spacer.className = 'chevron-spacer';
+    leftPart.appendChild(spacer);
+
+    const typeIcon = document.createElement('i');
+    typeIcon.className = 'ph ph-user-focus node-icon';
+    leftPart.appendChild(typeIcon);
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'node-name';
+    textSpan.textContent = name;
+    leftPart.appendChild(textSpan);
+
+    row.appendChild(leftPart);
+
+    // Right controls
+    const rightPart = document.createElement('div');
+    rightPart.className = 'tree-node-controls always-visible';
+
+    const createSlot = () => { const s = document.createElement('div'); s.className = 'ctrl-slot'; return s; };
+
+    rightPart.appendChild(createSlot()); // empty add slot
+
+    const eyeSlot = createSlot();
+    const eyeBtn = document.createElement('i');
+    eyeBtn.className = 'ph ph-eye ctrl-btn visibility-btn';
+    eyeBtn.dataset.target = id;
+    eyeBtn.dataset.parent = parentGroupId;
+    eyeSlot.appendChild(eyeBtn);
+    rightPart.appendChild(eyeSlot);
+
+    const lockSlot = createSlot();
+    const lockBtn = document.createElement('i');
+    lockBtn.className = 'ph ph-lock-key-open ctrl-btn lock-btn';
+    lockBtn.dataset.target = id;
+    lockBtn.dataset.parent = parentGroupId;
+    lockSlot.appendChild(lockBtn);
+    rightPart.appendChild(lockSlot);
+
+    const colorSlot = createSlot();
+    const colorDot = document.createElement('div');
+    colorDot.className = 'color-dot';
+    colorDot.style.backgroundColor = randomColor;
+    colorSlot.appendChild(colorDot);
+    rightPart.appendChild(colorSlot);
+
+    row.appendChild(rightPart);
+    wrapperDiv.appendChild(row);
+
+    // Insert into tree
+    let targetContainer;
+    if (parentWrapper) {
+        let childrenDiv = parentWrapper.querySelector(':scope > .tree-children');
+        if (!childrenDiv) {
+            childrenDiv = document.createElement('div');
+            childrenDiv.className = 'tree-children open';
+            parentWrapper.appendChild(childrenDiv);
+        }
+        targetContainer = childrenDiv;
+    } else {
+        const rootChildren = document.querySelector('#tree-container > .tree-children');
+        targetContainer = rootChildren || document.getElementById('tree-container');
+    }
+    targetContainer.appendChild(wrapperDiv);
+
+    // Load Persona 3D model
     try {
         const mesh = await PersonasEngine.createPersona(type, name);
         mesh.userData.id = id;
         mesh.userData.group = parentGroupId;
-        
+
         const spawnPos = PlacementEngine.getValidSpawnPosition(0.4);
         mesh.position.set(spawnPos.x, 6.0, spawnPos.z);
         mesh.updateMatrixWorld(true);
 
-        // Cajas por defecto como wireframe o si es fallback
         const wireGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 1.7, 0.5));
         const wireMat = new THREE.LineBasicMaterial({ color: randomColor });
         const wire = new THREE.LineSegments(wireGeo, wireMat);
         wire.userData = { id, group: parentGroupId, baseColor: new THREE.Color(randomColor), layerVisible: true, isPersonaWire: true };
         wire.position.copy(mesh.position);
-        wire.position.y += 0.85; // centro de la caja
-        wire.visible = false; // Never show the static fallback wire for Personas
+        wire.position.y += 0.85;
+        wire.visible = false;
 
         scene.add(mesh);
         scene.add(wire);
         Registry.addStructure(mesh);
         Registry.addWire(wire);
-        
-        // Trigger cinemática de aparición
+
         PersonasEngine.playRandomSpawnSequence(mesh);
-        
         History.save();
     } catch (e) {
         console.error('Failed to add persona', e);
-        li.remove();
+        wrapperDiv.remove();
     }
 }

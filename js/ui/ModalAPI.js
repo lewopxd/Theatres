@@ -1,5 +1,6 @@
 // ============================================================
 // ModalAPI — Ventanas flotantes draggables reutilizables
+// Migrated to Phosphor Icons
 // ============================================================
 
 import { createIcons } from '../utils/dom.js';
@@ -22,13 +23,12 @@ export class ModalAPI {
             <div class="window-header">
                 <span class="window-title">${title}</span>
                 <button class="window-close">
-                    <i data-lucide="x" style="width:14px;height:14px;"></i>
+                    <i class="ph ph-x" style="font-size:14px;"></i>
                 </button>
             </div>
             <div class="window-body">${contentHTML}</div>
         `;
         document.body.appendChild(this.element);
-        createIcons({ root: this.element });
 
         this.header = this.element.querySelector('.window-header');
         this.btnClose = this.element.querySelector('.window-close');

@@ -79,10 +79,8 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.split-badge svg, .single-badge svg {
-    width: 12px;
-    height: 12px;
-    stroke-width: 1.2px;
+.split-badge i, .single-badge i {
+    font-size: 12px;
     opacity: 0.75;
 }
 

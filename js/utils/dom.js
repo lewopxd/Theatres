@@ -3,11 +3,13 @@
 // ============================================================
 
 /**
- * Wrapper alrededor de lucide.createIcons() que verifica disponibilidad
- * @param {Object} [opts] — opciones de lucide createIcons
+ * No-op: Phosphor Icons son CSS-based (clases en <i>), se renderizan automáticamente.
+ * Mantenemos la función para no romper imports existentes que la llaman.
+ * @param {Object} [opts] — ignorado (era para lucide.createIcons)
  */
 export function createIcons(opts) {
-    if (window.lucide) window.lucide.createIcons(opts);
+    // Phosphor Icons no necesita inicialización JS.
+    // Los íconos se renderizan vía web font con clases CSS: <i class="ph ph-icon-name"></i>
 }
 
 /**
@@ -46,7 +48,8 @@ export function isOverUI(e) {
         el.closest('.window-modal') ||
         el.closest('#brightness-container') ||
         el.closest('.context-menu') ||
-        el.closest('#gizmo-container')
+        el.closest('#gizmo-container') ||
+        el.closest('#btn-clear-all')
     );
 }
 

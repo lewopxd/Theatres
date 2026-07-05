@@ -66,7 +66,7 @@ export function initPropertiesPanel() {
     });
 
     EventBus.on('selection:restored', ({ mesh }) => {
-        const li = document.querySelector(`li[data-id="${mesh.userData.id}"]`);
+        const li = document.querySelector(`.tree-node[data-id="${mesh.userData.id}"]`);
         selectObject(mesh, li, !propPanel().classList.contains('collapsed'));
     });
 
@@ -94,16 +94,18 @@ export function selectObject(mesh, li, showProps = false) {
     State.set('selectedMesh', mesh);
     State.set('selectedLi', li);
 
-    document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('selected'));
     if (li) {
-        const ti = li.querySelector(':scope > .tree-item');
-        if (ti) ti.classList.add('selected');
+        li.classList.add('selected');
+        // Expand parent tree-children containers
         let p = li.parentElement;
-        while (p && p.classList.contains('nested')) {
-            p.classList.add('active-tree');
-            const caret = p.previousElementSibling?.querySelector('.caret');
-            if (caret) caret.classList.add('caret-down');
-            p = p.parentElement?.parentElement;
+        while (p) {
+            if (p.classList.contains('tree-children')) {
+                p.classList.add('open');
+                const chevron = p.parentElement?.querySelector(':scope > .tree-node .chevron');
+                if (chevron) chevron.classList.add('open');
+            }
+            p = p.parentElement;
         }
     }
 
@@ -216,11 +218,13 @@ function createPropCheckbox(label, value, onChange, disabled = false) {
 
 
 function applyGroupProperty(groupId, property, value) {
-    const groupLi = document.querySelector(`li[data-id="${groupId}"]`);
+    const groupLi = document.querySelector(`.tree-node[data-id="${groupId}"]`);
     if (!groupLi) return;
 
     // Apply to DOM elements in this group (including nested)
-    const descendants = groupLi.querySelectorAll('li[data-id]');
+    // Navigate up to wrapper, then search all descendant .tree-node[data-id]
+    const wrapper = groupLi.parentElement;
+    const descendants = wrapper ? wrapper.querySelectorAll('.tree-node[data-id]') : [];
     descendants.forEach(li => {
         const id = li.dataset.id;
         const mesh = Registry.findStructureById(id);
@@ -238,14 +242,14 @@ function applyGroupProperty(groupId, property, value) {
             if (btn) {
                 if (value) btn.classList.add('is-locked');
                 else btn.classList.remove('is-locked');
-                btn.innerHTML = `<i data-lucide="${value ? 'lock' : 'unlock'}"></i>`;
+                btn.className = `ph ${value ? 'ph-lock-key' : 'ph-lock-key-open'} ctrl-btn lock-btn${value ? ' is-locked' : ''}`;
             }
             if (mesh) mesh.userData.locked = value;
         } else if (property === 'visibility') {
             const btn = li.querySelector('.visibility-btn');
             if (btn) {
                 btn.classList.toggle('hidden-layer', !value);
-                btn.innerHTML = `<i data-lucide="${value ? 'eye' : 'eye-off'}"></i>`;
+                btn.className = `ph ${value ? 'ph-eye' : 'ph-eye-slash'} ctrl-btn visibility-btn${!value ? ' hidden-layer' : ''}`;
             }
             if (mesh) mesh.userData.layerVisible = value;
             applyLayerVisibility(State.get('is3DMode'), State.get('isWireframe'));
@@ -269,7 +273,7 @@ function renderGroupProperties(li, groupColorHex) {
 
     const accHead1 = document.createElement('button');
     accHead1.className = 'accordion-header';
-    accHead1.innerHTML = `General <i data-lucide="chevron-down"></i>`;
+    accHead1.innerHTML = `General <i class="ph ph-caret-down"></i>`;
     tab1.appendChild(accHead1);
 
     const accBody1 = document.createElement('div');
@@ -282,7 +286,7 @@ function renderGroupProperties(li, groupColorHex) {
         <div class="prop-section-title" style="display:flex; justify-content:space-between; align-items:center;">
             <span>Grupo</span>
             <div class="quick-actions" style="display:flex; gap:8px;">
-                <button class="quick-action-btn btn-delete" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Eliminar"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button>
+                <button class="quick-action-btn btn-delete" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Eliminar"><i class="ph ph-trash" style="font-size:16px;"></i></button>
             </div>
         </div>
     `;
@@ -290,7 +294,7 @@ function renderGroupProperties(li, groupColorHex) {
     secGeneral.querySelector('.btn-delete').addEventListener('click', () => DeleteEngine.execute());
     
     // Name input
-    const currentName = li.querySelector('.tree-item').textContent.trim();
+    const currentName = li.querySelector('.node-name')?.textContent?.trim() || 'Grupo';
     const nameRow = createPropRow('Nombre', 'text', currentName, v => {
         updateNodeName(li, v);
     });
@@ -317,17 +321,10 @@ function renderGroupProperties(li, groupColorHex) {
 
 function updateNodeName(li, newName) {
     if (!li) return;
-    const treeItem = li.querySelector('.tree-item');
-    if (!treeItem) return;
-    
-    // The name is a text node inside tree-item.
-    // It usually comes after the caret and icon.
-    // We can safely replace the text nodes.
-    Array.from(treeItem.childNodes).forEach(node => {
-        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0) {
-            node.textContent = ' ' + newName + ' ';
-        }
-    });
+    const nameSpan = li.querySelector('.node-name');
+    if (nameSpan) {
+        nameSpan.textContent = newName;
+    }
     
     // If it's a mesh, update its userData.name too (although right now we just rely on DOM)
     if (li.dataset.type === 'elemento') {
@@ -373,8 +370,8 @@ function renderMeshProperties(mesh, wireColorHex, li) {
             actionsHeader.innerHTML = `
                 <span>Propiedades</span>
                 <div class="quick-actions" style="display:flex; gap:8px;">
-                    <button class="quick-action-btn btn-duplicate" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Duplicar"><i data-lucide="copy" style="width:16px; height:16px;"></i></button>
-                    <button class="quick-action-btn btn-delete" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Eliminar"><i data-lucide="trash-2" style="width:16px; height:16px;"></i></button>
+                    <button class="quick-action-btn btn-duplicate" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Duplicar"><i class="ph ph-copy" style="font-size:16px;"></i></button>
+                    <button class="quick-action-btn btn-delete" style="background:transparent; border:none; color:var(--text-secondary); cursor:pointer; padding:4px;" title="Eliminar"><i class="ph ph-trash" style="font-size:16px;"></i></button>
                 </div>
             `;
             secName.appendChild(actionsHeader);
@@ -382,7 +379,7 @@ function renderMeshProperties(mesh, wireColorHex, li) {
             actionsHeader.querySelector('.btn-duplicate').addEventListener('click', () => DuplicateEngine.execute());
             actionsHeader.querySelector('.btn-delete').addEventListener('click', () => DeleteEngine.execute());
 
-            const currentName = li ? li.querySelector('.tree-item').textContent.trim() : (data.name || 'Elemento');
+            const currentName = li ? (li.querySelector('.node-name')?.textContent?.trim() || data.name || 'Elemento') : (data.name || 'Elemento');
             secName.appendChild(createPropRow('Nombre', 'text', currentName, v => updateNodeName(li, v)));
             
             const wire = Registry.findWireById(data.id);
@@ -654,7 +651,7 @@ function renderMeshProperties(mesh, wireColorHex, li) {
         
         const accHead = document.createElement('button');
         accHead.className = 'accordion-header';
-        accHead.innerHTML = `${def.title} <i data-lucide="chevron-down"></i>`;
+        accHead.innerHTML = `${def.title} <i class="ph ph-caret-down"></i>`;
         tabContent.appendChild(accHead);
 
         const accBody = document.createElement('div');
@@ -692,21 +689,31 @@ function getBreadcrumbPathHTML(li, colorHex) {
     if (!li) return `<span>Contenedor</span>`;
     const path = [];
     let current = li;
-    while (current && current.tagName === 'LI') {
-        const itemDiv = current.querySelector(':scope > .tree-item');
-        if (itemDiv) {
-            const clone = itemDiv.cloneNode(true);
-            clone.querySelectorAll('.caret, .node-icon, .layer-controls, span[style]').forEach(el => el.remove());
-            path.unshift(clone.textContent.trim());
+    while (current) {
+        // li is now a .tree-node div
+        const nameSpan = current.querySelector?.(':scope > div .node-name') || current.querySelector?.('.node-name');
+        if (nameSpan) {
+            path.unshift(nameSpan.textContent.trim());
+        } else if (current.classList?.contains('tree-node')) {
+            const name = current.querySelector('.node-name');
+            if (name) path.unshift(name.textContent.trim());
         }
-        current = current.parentElement.closest('li');
+        // Traverse up: wrapper div > tree-children > wrapper div > tree-node
+        const wrapper = current.closest ? current.parentElement : null;
+        if (!wrapper) break;
+        const parentChildren = wrapper.parentElement;
+        if (!parentChildren || !parentChildren.classList?.contains('tree-children')) break;
+        const parentWrapper = parentChildren.parentElement;
+        if (!parentWrapper) break;
+        current = parentWrapper.querySelector(':scope > .tree-node');
+        if (current === li) break; // prevent infinite loop
     }
     let html = '';
     for (let i = 0; i < path.length; i++) {
         if (i > 0) {
             const isLast = (i === path.length - 1);
             const colorStyle = isLast && colorHex ? `style="color: ${colorHex}; opacity: 1;"` : 'style="opacity: 0.5;"';
-            html += `<i data-lucide="chevron-right" class="breadcrumb-chevron" ${colorStyle}></i>`;
+            html += `<i class="ph ph-caret-right breadcrumb-chevron" ${colorStyle}></i>`;
         }
         html += `<span>${path[i]}</span>`;
     }

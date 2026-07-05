@@ -1,5 +1,6 @@
 // ============================================================
 // ContextMenuAPI — Menú contextual posicional
+// Migrated to Phosphor Icons
 // ============================================================
 
 import { createIcons } from '../utils/dom.js';
@@ -26,7 +27,7 @@ class ContextMenuController {
         items.forEach(item => {
             const div = document.createElement('div');
             div.className = 'context-menu-item';
-            div.innerHTML = `<i data-lucide="${item.icon}"></i> <span>${item.label}</span>`;
+            div.innerHTML = `<i class="ph ph-${item.icon}"></i> <span>${item.label}</span>`;
             div.addEventListener('click', e => {
                 e.stopPropagation();
                 item.action();
@@ -34,7 +35,6 @@ class ContextMenuController {
             });
             this.el.appendChild(div);
         });
-        createIcons({ root: this.el });
         this.el.classList.add('active');
         this.el.style.zIndex = State.bumpZ() + 1000;
 

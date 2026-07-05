@@ -64,7 +64,7 @@ export function handleSelectClick(e, pointerDownPos) {
 
     if (hitMesh && hitMesh.userData && !hitMesh.userData.locked) {
         // Always select an unlocked object, even if in orbit/pan mode (Photoshop-like auto-select)
-        const li = document.querySelector(`li[data-id="${hitMesh.userData.id}"]`);
+        const li = document.querySelector(`.tree-node[data-id="${hitMesh.userData.id}"]`);
         EventBus.emit('selection:select', {
             mesh: hitMesh,
             li,

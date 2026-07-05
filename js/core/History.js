@@ -13,6 +13,7 @@ import { PersonasEngine } from '../engine/PersonasEngine.js';
 import { HISTORY_MAX, STORAGE_KEY } from '../utils/constants.js';
 import { State } from './State.js';
 import { EventBus } from './EventBus.js';
+import { switchCategory } from '../ui/TreeBuilder.js';
 
 export const History = {
     undoStack: [],
@@ -151,15 +152,14 @@ export const History = {
             }
         }
 
-        // Restore trees
-        const treeArq = $('tree-arq');
-        const treeEsc = $('tree-esc');
-        const treeEq = $('tree-eq');
-        const treePer = $('tree-per');
-        if (state.tArq && treeArq) treeArq.innerHTML = state.tArq;
-        if (state.tEsc && treeEsc) treeEsc.innerHTML = state.tEsc;
-        if (state.tEq && treeEq) treeEq.innerHTML = state.tEq;
-        if (state.tPer && treePer) treePer.innerHTML = state.tPer;
+        // Restore tree
+        const treeContainer = $('tree-container');
+        if (state.tree && treeContainer) {
+            treeContainer.innerHTML = state.tree;
+        } else if (state.activeCategory) {
+            // Re-render from userProject if no saved tree HTML
+            switchCategory(state.activeCategory);
+        }
 
         createIcons();
         applyLayerVisibility(State.get('is3DMode'), State.get('isWireframe'));

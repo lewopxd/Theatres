@@ -79,9 +79,8 @@
     border-left: 2px solid var(--accent);
 }
 
-.act-btn svg {
-    width: 20px;
-    height: 20px;
+.act-btn i {
+    font-size: 20px;
 }
 
 @media (min-width: 768px) {
@@ -124,9 +123,7 @@
     color: #e0e0e0;
 }
 
-.status-item svg {
-    width: 14px;
-    height: 14px;
-    stroke-width: 1.5;
+.status-item i {
+    font-size: 14px;
     color: #888888;
 }

@@ -7,8 +7,8 @@
     <title>Visualización 3D - Teatro Tecal</title>
     <meta name="description" content="Tecal — Simulación de teatros e iluminación escénica. IDE web tipo WYSIWYG CAD para visualización 3D de espacios teatrales.">
 
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <!-- CSS Modules -->
     <link rel="stylesheet" href="css/variables.css">
@@ -66,33 +66,29 @@
 
             <!-- GRUPO 1: Menú + toggle 2D/3D -->
             <div class="tb-group">
-                <button id="btn-top-explorer" class="icon-btn" title="Explorador"><i data-lucide="folder-tree"></i></button>
-                <button id="btn-top-properties" class="icon-btn" title="Propiedades"><i data-lucide="sliders-horizontal"></i></button>
+                <button id="btn-top-explorer" class="icon-btn" title="Explorador"><i class="ph ph-tree-structure"></i></button>
+                <button id="btn-top-properties" class="icon-btn" title="Propiedades"><i class="ph ph-sliders"></i></button>
                 <div class="tb-sep"></div>
-                <button id="btn-toggle-view" class="icon-btn active" title="Alternar 2D/3D"><i
-                        data-lucide="box"></i></button>
+                <button id="btn-toggle-view" class="icon-btn active" title="Alternar 2D/3D"><i class="ph ph-cube"></i></button>
             </div>
 
             <div class="tb-sep"></div>
 
             <!-- GRUPO 2: Visibilidad de escena -->
             <div class="tb-group">
-                <button id="btn-dimensions" class="icon-btn" title="Mostrar/Ocultar Acotaciones"><i
-                        data-lucide="ruler"></i></button>
-                <button id="btn-grid" class="icon-btn" title="Ajustes de Grid"><i data-lucide="grid-3x3"></i></button>
-                <button id="btn-wireframe" class="icon-btn" title="Wire View"><i data-lucide="boxes"></i></button>
-                <button id="btn-gizmo" class="icon-btn active" title="Mostrar/Ocultar Gizmo"><i
-                        data-lucide="compass"></i></button>
+                <button id="btn-dimensions" class="icon-btn" title="Mostrar/Ocultar Acotaciones"><i class="ph ph-ruler"></i></button>
+                <button id="btn-grid" class="icon-btn" title="Ajustes de Grid"><i class="ph ph-grid-four"></i></button>
+                <button id="btn-wireframe" class="icon-btn" title="Wire View"><i class="ph ph-bounding-box"></i></button>
+                <button id="btn-gizmo" class="icon-btn active" title="Mostrar/Ocultar Gizmo"><i class="ph ph-compass"></i></button>
             </div>
 
             <div class="tb-sep"></div>
 
             <!-- GRUPO 3: Herramientas -->
             <div class="tb-group">
-                <button id="btn-select" class="icon-btn" title="Seleccionar (Q)"><i
-                        data-lucide="mouse-pointer-2"></i></button>
-                <button id="btn-move" class="icon-btn" title="Mover (W)"><i data-lucide="move"></i></button>
-                <button id="btn-rotate" class="icon-btn" title="Rotar (R)"><i data-lucide="rotate-cw"></i></button>
+                <button id="btn-select" class="icon-btn" title="Seleccionar (Q)"><i class="ph ph-cursor"></i></button>
+                <button id="btn-move" class="icon-btn" title="Mover (W)"><i class="ph ph-arrows-out-cardinal"></i></button>
+                <button id="btn-rotate" class="icon-btn" title="Rotar (R)"><i class="ph ph-arrows-clockwise"></i></button>
                 <div id="move-planes">
                     <button class="icon-btn sm btn-plane active" data-plane="xz"
                         title="Mover en plano horizontal XZ">XZ</button>
@@ -100,61 +96,50 @@
                     <button class="icon-btn sm btn-plane" data-plane="yz" title="Mover en plano lateral YZ">YZ</button>
                 </div>
                 <div class="tb-sep" style="margin: 0 4px; display: inline-block; vertical-align: middle;"></div>
-                <button id="btn-zoom-toggle" class="icon-btn sm active" title="Zoom hacia el cursor (CAD)"><i data-lucide="mouse-pointer-click"></i></button>
-                <button id="btn-clamp" class="icon-btn sm active" title="Restringir al área del teatro"><i data-lucide="shrink"></i></button>
-                <button id="btn-orbit" class="icon-btn active" title="Órbita / Navegar (E)"><i
-                        data-lucide="rotate-3d"></i></button>
-                <button id="btn-pan" class="icon-btn" title="Encuadre / Pan (H)"><i data-lucide="hand"></i></button>
+                <button id="btn-zoom-toggle" class="icon-btn sm active" title="Zoom hacia el cursor (CAD)"><i class="ph ph-cursor-click"></i></button>
+                <button id="btn-clamp" class="icon-btn sm active" title="Restringir al área del teatro"><i class="ph ph-arrows-in"></i></button>
+                <button id="btn-orbit" class="icon-btn active" title="Órbita / Navegar (E)"><i class="ph ph-globe-hemisphere-east"></i></button>
+                <button id="btn-pan" class="icon-btn" title="Encuadre / Pan (H)"><i class="ph ph-hand"></i></button>
             </div>
 
             <!-- GRUPO 4: Historial + Brillo -->
             <div class="tb-group tb-group-right">
-                <button id="btn-undo" class="icon-btn disabled" title="Deshacer (Ctrl+Z)"><i
-                        data-lucide="undo"></i></button>
-                <button id="btn-redo" class="icon-btn disabled" title="Rehacer (Ctrl+Y)"><i
-                        data-lucide="redo"></i></button>
+                <button id="btn-undo" class="icon-btn disabled" title="Deshacer (Ctrl+Z)"><i class="ph ph-arrow-u-up-left"></i></button>
+                <button id="btn-redo" class="icon-btn disabled" title="Rehacer (Ctrl+Y)"><i class="ph ph-arrow-u-up-right"></i></button>
                 <div class="tb-sep"></div>
-                <button id="btn-brightness" class="icon-btn" title="Luz Ambiente"><i data-lucide="sun"></i></button>
+                <button id="btn-brightness" class="icon-btn" title="Luz Ambiente"><i class="ph ph-sun"></i></button>
             </div>
 
         </div>
 
         <div id="toolbar-2d">
-            <button class="icon-btn sm btn-cam-mode" data-mode="top" title="Superior"><i
-                    data-lucide="arrow-down-to-line"></i></button>
-            <button class="icon-btn sm btn-cam-mode" data-mode="front" title="Frontal"><i
-                    data-lucide="align-horizontal-justify-center"></i></button>
-            <button class="icon-btn sm btn-cam-mode" data-mode="bottom" title="Inferior"><i
-                    data-lucide="arrow-up-to-line"></i></button>
-            <button class="icon-btn sm btn-cam-mode" data-mode="left" title="Lateral Izquierda"><i
-                    data-lucide="arrow-right-to-line"></i></button>
-            <button class="icon-btn sm btn-cam-mode" data-mode="right" title="Lateral Derecha"><i
-                    data-lucide="arrow-left-to-line"></i></button>
-            <button class="icon-btn sm btn-cam-mode" data-mode="ortho" title="Ortogonal"><i
-                    data-lucide="box-select"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="top" title="Superior"><i class="ph ph-arrow-line-down"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="front" title="Frontal"><i class="ph ph-align-center-horizontal"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="bottom" title="Inferior"><i class="ph ph-arrow-line-up"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="left" title="Lateral Izquierda"><i class="ph ph-arrow-line-right"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="right" title="Lateral Derecha"><i class="ph ph-arrow-line-left"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="ortho" title="Ortogonal"><i class="ph ph-selection-all"></i></button>
             <div class="separator"></div>
-            <button class="icon-btn sm btn-cam-mode" data-mode="split" title="Vista Dividida"><i
-                    data-lucide="layout-grid"></i></button>
+            <button class="icon-btn sm btn-cam-mode" data-mode="split" title="Vista Dividida"><i class="ph ph-squares-four"></i></button>
             <div class="separator"></div>
-            <button class="icon-btn sm btn-fit-view" id="btn-fit-view" title="Encuadrar Vista (Fit)"><i
-                    data-lucide="maximize"></i></button>
+            <button class="icon-btn sm btn-fit-view" id="btn-fit-view" title="Encuadrar Vista (Fit)"><i class="ph ph-frame-corners"></i></button>
         </div>
 
         <div id="main-wrapper">
             <div id="activity-bar">
-                <button id="btn-act-explorer" class="act-btn" title="Explorador"><i data-lucide="folder-tree"></i></button>
-                <button id="btn-act-properties" class="act-btn" title="Propiedades"><i data-lucide="sliders-horizontal"></i></button>
+                <button id="btn-act-explorer" class="act-btn" title="Explorador"><i class="ph ph-tree-structure"></i></button>
+                <button id="btn-act-properties" class="act-btn" title="Propiedades"><i class="ph ph-sliders"></i></button>
             </div>
             
             <div id="canvas-wrapper" class="tool-orbit single-active">
                 <canvas id="ruler-overlay"></canvas>
                 <div class="split-divider v"></div>
                 <div class="split-divider h"></div>
-                <div class="split-badge tl"><i data-lucide="arrow-down-to-line"></i> Superior</div>
-                <div class="split-badge tr"><i data-lucide="align-horizontal-justify-center"></i> Frontal</div>
-                <div class="split-badge bl"><i data-lucide="arrow-right-to-line"></i> Lateral</div>
-                <div class="split-badge br"><i data-lucide="box-select"></i> Ortogonal</div>
-                <div class="single-badge tl" id="single-badge"><i data-lucide="box"></i> <span>Perspectiva (3D)</span></div>
+                <div class="split-badge tl"><i class="ph ph-arrow-line-down"></i> Superior</div>
+                <div class="split-badge tr"><i class="ph ph-align-center-horizontal"></i> Frontal</div>
+                <div class="split-badge bl"><i class="ph ph-arrow-line-right"></i> Lateral</div>
+                <div class="split-badge br"><i class="ph ph-selection-all"></i> Ortogonal</div>
+                <div class="single-badge tl" id="single-badge"><i class="ph ph-cube"></i> <span>Perspectiva (3D)</span></div>
                 
                 <div id="gizmo-container" title="Arrastrar Gizmo"></div>
                 
@@ -165,209 +150,36 @@
             </div>
 
             <div id="sidebar">
-                <div class="sidebar-tabs">
-                    <button class="tab-btn active" data-target="tab-arq">Arquitectura</button>
-                    <button class="tab-btn" data-target="tab-esc">Objetos</button>
-                    <button class="tab-btn" data-target="tab-per">Personas</button>
-                    <button class="tab-btn" data-target="tab-eq">Equipos</button>
+                <!-- SELECTOR DE CONTEXTO (2 Filas de Pestañas) -->
+                <div class="sidebar-tab-grid">
+                    <div class="sidebar-tab-row">
+                        <button onclick="window._switchCategory('arquitectura')" id="tab-arquitectura" class="tab-btn">
+                            Espacio Arquitectónico
+                        </button>
+                        <button onclick="window._switchCategory('escena')" id="tab-escena" class="tab-btn">
+                            Espacio Escénico
+                        </button>
+                    </div>
+                    <div class="sidebar-tab-row">
+                        <button onclick="window._switchCategory('iluminacion')" id="tab-iluminacion" class="tab-btn">
+                            Iluminación y Medios
+                        </button>
+                        <button onclick="window._switchCategory('personas')" id="tab-personas" class="tab-btn">
+                            Personas
+                        </button>
+                    </div>
                 </div>
 
-                <div id="tab-arq" class="tab-content active">
-                    <div class="tab-toolbar">
-                        <button class="icon-btn sm btn-add-node" title="Añadir Elemento"><i
-                                data-lucide="plus"></i></button>
-                    </div>
-                    <ul class="tree" id="tree-arq">
-                        <li data-type="grupo" data-id="contenedor-arq">
-                            <div class="tree-item" style="padding-left: 5px;"><span class="caret caret-down"></span><i
-                                    data-lucide="folder-tree" class="node-icon"></i> Contenedor</div>
-                            <ul class="nested active-tree">
-                                <li data-type="grupo" data-id="teatro">
-                                    <div class="tree-item" style="padding-left: 20px;"><span
-                                            class="caret caret-down"></span><i data-lucide="component"
-                                            class="node-icon"></i> Teatro</div>
-                                    <ul class="nested active-tree">
-                                        <li data-type="grupo" data-id="paredes">
-                                            <div class="tree-item" style="padding-left: 35px;">
-                                                <span class="caret caret-down"></span><i data-lucide="layout-panel-left"
-                                                    class="node-icon"></i> Paredes
-                                                <div class="layer-controls">
-                                                    <button class="visibility-btn" data-target="paredes"
-                                                        data-is-group="true"><i data-lucide="eye"></i></button>
-                                                    <button class="lock-btn is-locked" data-target="paredes"
-                                                        data-is-group="true"><i data-lucide="lock"></i></button>
-                                                    <input type="color" class="color-picker layer-picker"
-                                                        data-target="paredes" data-is-group="true" value="#00ffff">
-                                                </div>
-                                            </div>
-                                            <ul class="nested active-tree">
-                                                <li data-type="elemento" data-id="pared-fondo">
-                                                    <div class="tree-item" style="padding-left: 55px;">Fondo <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="pared-fondo" data-parent="paredes"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="pared-fondo"
-                                                                data-parent="paredes"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker"
-                                                                data-target="pared-fondo" data-parent="paredes"
-                                                                value="#00ffff"></div>
-                                                    </div>
-                                                </li>
-                                                <li data-type="elemento" data-id="pared-izq">
-                                                    <div class="tree-item" style="padding-left: 55px;">Izquierda <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="pared-izq" data-parent="paredes"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="pared-izq"
-                                                                data-parent="paredes"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker"
-                                                                data-target="pared-izq" data-parent="paredes"
-                                                                value="#00ffff"></div>
-                                                    </div>
-                                                </li>
-                                                <li data-type="elemento" data-id="pared-der">
-                                                    <div class="tree-item" style="padding-left: 55px;">Derecha <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="pared-der" data-parent="paredes"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="pared-der"
-                                                                data-parent="paredes"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker"
-                                                                data-target="pared-der" data-parent="paredes"
-                                                                value="#00ffff"></div>
-                                                    </div>
-                                                </li>
-                                            </ul>
-                                        </li>
-                                        <li data-type="elemento" data-id="piso">
-                                            <div class="tree-item" style="padding-left: 35px;">
-                                                <span style="width:18px; display:inline-block"></span><i
-                                                    data-lucide="layout-dashboard" class="node-icon"></i> Piso
-                                                <div class="layer-controls">
-                                                    <button class="visibility-btn" data-target="piso"><i
-                                                            data-lucide="eye"></i></button>
-                                                    <button class="lock-btn is-locked" data-target="piso"><i
-                                                            data-lucide="lock"></i></button>
-                                                    <input type="color" class="color-picker layer-picker"
-                                                        data-target="piso" value="#00ff00">
-                                                </div>
-                                            </div>
-                                        </li>
-                                        <li data-type="grupo" data-id="barras">
-                                            <div class="tree-item" style="padding-left: 35px;">
-                                                <span class="caret caret-down"></span><i data-lucide="align-justify"
-                                                    class="node-icon"></i> Barras/Tramoya
-                                                <div class="layer-controls">
-                                                    <button class="visibility-btn" data-target="barras"
-                                                        data-is-group="true"><i data-lucide="eye"></i></button>
-                                                    <button class="lock-btn is-locked" data-target="barras"
-                                                        data-is-group="true"><i data-lucide="lock"></i></button>
-                                                    <input type="color" class="color-picker layer-picker"
-                                                        data-target="barras" data-is-group="true" value="#ff00ff">
-                                                </div>
-                                            </div>
-                                            <ul class="nested active-tree">
-                                                <li data-type="elemento" data-id="barra-1">
-                                                    <div class="tree-item" style="padding-left: 55px;">Barra 1 <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="barra-1" data-parent="barras"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="barra-1"
-                                                                data-parent="barras"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker" data-target="barra-1"
-                                                                data-parent="barras" value="#ff00ff"></div>
-                                                    </div>
-                                                </li>
-                                                <li data-type="elemento" data-id="barra-2">
-                                                    <div class="tree-item" style="padding-left: 55px;">Barra 2 <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="barra-2" data-parent="barras"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="barra-2"
-                                                                data-parent="barras"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker" data-target="barra-2"
-                                                                data-parent="barras" value="#ff00ff"></div>
-                                                    </div>
-                                                </li>
-                                                <li data-type="elemento" data-id="barra-3">
-                                                    <div class="tree-item" style="padding-left: 55px;">Barra 3 <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="barra-3" data-parent="barras"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="barra-3"
-                                                                data-parent="barras"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker" data-target="barra-3"
-                                                                data-parent="barras" value="#ff00ff"></div>
-                                                    </div>
-                                                </li>
-                                                <li data-type="elemento" data-id="barra-4">
-                                                    <div class="tree-item" style="padding-left: 55px;">Barra 4 <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="barra-4" data-parent="barras"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="barra-4"
-                                                                data-parent="barras"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker" data-target="barra-4"
-                                                                data-parent="barras" value="#ff00ff"></div>
-                                                    </div>
-                                                </li>
-                                                <li data-type="elemento" data-id="barra-5">
-                                                    <div class="tree-item" style="padding-left: 55px;">Barra 5 <div
-                                                            class="layer-controls"><button class="visibility-btn"
-                                                                data-target="barra-5" data-parent="barras"><i
-                                                                    data-lucide="eye"></i></button><button
-                                                                class="lock-btn is-locked" data-target="barra-5"
-                                                                data-parent="barras"><i
-                                                                    data-lucide="lock"></i></button><input type="color"
-                                                                class="color-picker layer-picker" data-target="barra-5"
-                                                                data-parent="barras" value="#ff00ff"></div>
-                                                    </div>
-                                                </li>
-                                            </ul>
-                                        </li>
-                                    </ul>
-                                </li>
-                            </ul>
-                        </li>
-                    </ul>
-                </div>
-
-                <div id="tab-esc" class="tab-content">
-                    <div class="tab-toolbar">
-                        <button class="icon-btn sm btn-add-node" title="Añadir Objeto"><i
-                                data-lucide="plus"></i></button>
-                    </div>
-                    <ul class="tree" id="tree-esc"></ul>
-                </div>
-
-                <div id="tab-per" class="tab-content">
-                    <div class="tab-toolbar">
-                        <button class="icon-btn sm btn-add-node" title="Añadir Persona"><i
-                                data-lucide="plus"></i></button>
-                    </div>
-                    <ul class="tree" id="tree-per"></ul>
-                </div>
-
-                <div id="tab-eq" class="tab-content">
-                    <div class="tab-toolbar">
-                        <button class="icon-btn sm btn-add-node" title="Añadir Equipo"><i
-                                data-lucide="plus"></i></button>
-                    </div>
-                    <ul class="tree" id="tree-eq"></ul>
+                <!-- Contenedor ÚNICO del Árbol de Nodos -->
+                <div class="tree-scroll-area" id="tree-container">
+                    <!-- Contenido inyectado por renderTree() vía JS -->
                 </div>
             </div>
 
             <div id="brightness-container">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                     <label style="margin: 0;">Intensidad Luz Ambiente</label>
-                    <button id="btn-close-brightness" class="icon-btn sm" style="margin-left: 10px;"><i data-lucide="x"></i></button>
+                    <button id="btn-close-brightness" class="icon-btn sm" style="margin-left: 10px;"><i class="ph ph-x"></i></button>
                 </div>
                 <input type="range" id="brightness-slider" min="0" max="1" step="0.01" value="1">
             </div>
@@ -379,7 +191,7 @@
                 <div id="prop-header">
                     <span id="prop-title-path">Contenedor</span>
                     <span id="desktop-prop-title">Propiedades</span>
-                    <i data-lucide="chevron-down" class="panel-toggle-icon"></i>
+                    <i class="ph ph-caret-down panel-toggle-icon"></i>
                 </div>
                 <div id="prop-content"></div>
             </div>
@@ -392,11 +204,20 @@
         </div>
 
         <div id="bottom-bar">
-            <div class="status-item" id="status-coords"><i data-lucide="ruler"></i> <span>8m (W) x 4.5m (H) x 7.5m (D)</span></div>
-            <div class="status-item" id="status-rotation"><i data-lucide="rotate-3d"></i> <span>0.0° / 0.0° / 0.0°</span></div>
-            <div class="status-item"><i data-lucide="camera"></i> <span id="status-cam">Perspectiva (3D)</span></div>
+            <div class="status-item" id="status-coords"><i class="ph ph-ruler"></i> <span>8m (W) x 4.5m (H) x 7.5m (D)</span></div>
+            <div class="status-item" id="status-rotation"><i class="ph ph-arrows-clockwise"></i> <span>0.0° / 0.0° / 0.0°</span></div>
+            <div class="status-item"><i class="ph ph-camera"></i> <span id="status-cam">Perspectiva (3D)</span></div>
         </div>
     </div><!-- #app-shell -->
+
+    <!-- Floating DEV button: Clear localStorage + cache + reload -->
+    <button id="btn-clear-all" title="DEV: Limpiar cache + localStorage + reload"
+        style="position:fixed; top:8px; right:8px; z-index:99999; background:rgba(30,30,30,0.9); border:1px solid #ff6b6b; color:#ff6b6b; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:12px; display:flex; align-items:center; gap:5px; backdrop-filter:blur(4px); transition: background 0.2s, transform 0.1s;"
+        onmouseover="this.style.background='rgba(255,107,107,0.2)'; this.style.transform='scale(1.05)';"
+        onmouseout="this.style.background='rgba(30,30,30,0.9)'; this.style.transform='scale(1)';">
+        <i class="ph ph-trash" style="font-size:14px;"></i>
+        <span>Clear</span>
+    </button>
 
     <!-- Floating crosshair hint near cursor -->
     <div id="cursor-move-hint">

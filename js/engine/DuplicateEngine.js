@@ -149,29 +149,26 @@ export const DuplicateEngine = {
     duplicateDOM(originalLi, newId, newName) {
         if (!originalLi) return;
         
-        const newLi = originalLi.cloneNode(true);
-        newLi.dataset.id = newId;
+        // originalLi is a .tree-node div. Its parent is the wrapper div containing the row + children.
+        const originalWrapper = originalLi.parentElement;
+        if (!originalWrapper) return;
+
+        const newWrapper = originalWrapper.cloneNode(true);
+        const newRow = newWrapper.querySelector('.tree-node');
+        if (newRow) newRow.dataset.id = newId;
         
         // Update all specific targets inside the cloned node
-        newLi.querySelectorAll('[data-target]').forEach(el => {
+        newWrapper.querySelectorAll('[data-target]').forEach(el => {
             el.dataset.target = newId;
         });
 
         // Update name
-        const treeItem = newLi.querySelector('.tree-item');
-        if (treeItem) {
-            // Find text node and replace name
-            Array.from(treeItem.childNodes).forEach(node => {
-                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0) {
-                    node.textContent = ' ' + newName + ' ';
-                }
-            });
+        const nameSpan = newWrapper.querySelector('.node-name');
+        if (nameSpan) {
+            nameSpan.textContent = newName;
         }
 
-        // Insert after original
-        originalLi.parentNode.insertBefore(newLi, originalLi.nextSibling);
-        
-        // Re-init icons
-        createIcons({ root: newLi });
+        // Insert after original wrapper
+        originalWrapper.parentNode.insertBefore(newWrapper, originalWrapper.nextSibling);
     }
 };

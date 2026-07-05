@@ -1,5 +1,5 @@
 /* ============================================================
-   SIDEBAR — tabs, tree, layers, indent, visibility/lock/color
+   SIDEBAR — 2x2 tabs, tree (mockup CAD), layers, visibility/lock/color
    ============================================================ */
 #sidebar {
     width: 280px;
@@ -21,6 +21,58 @@
     left: 0;
 }
 
+/* ---- SELECTOR DE CONTEXTO: 2 filas de pestañas ---- */
+.sidebar-tab-grid {
+    display: flex;
+    flex-direction: column;
+    background: #2a2d2e;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+}
+
+.sidebar-tab-row {
+    display: flex;
+}
+
+.sidebar-tab-row:first-child {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-tab-grid .tab-btn {
+    flex: 1;
+    padding: 4px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-align: center;
+    text-transform: uppercase;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-tab-grid .tab-btn:hover {
+    color: #e0e0e0;
+}
+
+.sidebar-tab-grid .tab-btn.active {
+    color: #6eb5ff;
+    border-bottom-color: #3b8eea;
+    background: var(--bg-sidebar);
+}
+
+/* Border between columns in each row */
+.sidebar-tab-row .tab-btn + .tab-btn {
+    border-left: 1px solid var(--border-color);
+}
+
+/* ---- Properties panel header tabs (keep original style) ---- */
 .sidebar-tabs {
     display: flex;
     background: transparent;
@@ -28,7 +80,8 @@
     flex-shrink: 0;
 }
 
-.tab-btn {
+#prop-desktop-header .tab-btn,
+.sidebar-tabs > .tab-btn:not(.sidebar-tab-grid .tab-btn) {
     flex: 1;
     padding: 8px 5px;
     font-size: 10px;
@@ -42,129 +95,160 @@
     transition: 0.2s;
 }
 
-.tab-btn:hover {
+#prop-desktop-header .tab-btn:hover {
     color: var(--text-main);
 }
 
-.tab-btn.active {
+#prop-desktop-header .tab-btn.active {
     color: var(--text-main);
     border-bottom-color: var(--accent);
 }
 
-.tab-content {
-    display: none;
-    flex-direction: column;
+/* ---- SCROLL AREA for the tree ---- */
+.tree-scroll-area {
     flex: 1;
-    overflow: hidden;
-}
-
-.tab-content.active {
-    display: flex;
-}
-
-.tab-toolbar {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding: 4px;
-    border-bottom: 1px solid var(--border-color);
-    background: var(--bg-sidebar);
-    flex-shrink: 0;
-}
-
-#tab-arq .tab-toolbar,
-#tab-eq .tab-toolbar {
-    display: none;
-}
-
-/* Tree */
-ul.tree,
-ul.tree ul {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-}
-
-ul.tree {
-    padding-top: 5px;
     overflow-y: auto;
-    flex: 1;
+    padding: 6px;
 }
 
-ul.tree li {
-    user-select: none;
-}
-
-.tree-item {
+/* ---- TREE NODES (mockup CAD style) ---- */
+.tree-node {
     display: flex;
     align-items: center;
-    padding: 4px 10px;
-    font-size: 13px;
-    color: var(--text-main);
+    padding: 4px 2px 4px 8px;
     cursor: pointer;
-    border: 1px solid transparent;
+    user-select: none;
+    border-radius: 3px;
 }
 
-.tree-item:hover {
-    background-color: var(--hover-bg);
+.tree-node:hover {
+    background-color: #2a2d2e;
 }
 
-.tree-item.selected {
-    background-color: var(--active-bg);
-    color: #fff;
-    border-color: var(--border-color);
+.tree-node.selected {
+    background-color: #37373d;
 }
 
-.tree-item i[data-lucide].node-icon {
-    width: 14px;
-    height: 14px;
-    margin-right: 6px;
-    color: var(--text-muted);
+/* ---- TREE CHILDREN (nested/collapsible) ---- */
+.tree-children {
+    padding-left: 16px;
+    border-left: 1px solid var(--border-color);
+    margin-left: 12px;
+    display: none; /* Hidden by default */
 }
 
-/* Caret (expand/collapse) */
-.caret {
-    width: 14px;
-    height: 14px;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    margin-right: 4px;
-    transition: transform 0.2s;
-}
-
-.caret::before {
-    content: '▶';
-    font-size: 8px;
-    color: var(--text-muted);
-}
-
-.caret-down::before {
-    transform: rotate(90deg);
-}
-
-.nested {
-    display: none;
-}
-
-.active-tree {
+.tree-children.open {
     display: block;
 }
 
-/* Indent levels */
-.indent-1 {
-    padding-left: 20px;
+/* ---- CHEVRON (expand/collapse) ---- */
+.tree-node .chevron {
+    font-size: 12px;
+    margin-right: 6px;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    width: 12px;
+    flex-shrink: 0;
 }
 
-.indent-2 {
-    padding-left: 35px;
+.tree-node .chevron.open {
+    transform: rotate(90deg);
 }
 
-.indent-3 {
-    padding-left: 55px;
+/* Spacer for leaf nodes (align with folder chevron) */
+.tree-node .chevron-spacer {
+    width: 18px;
+    display: inline-block;
+    flex-shrink: 0;
 }
 
-/* Layer controls */
+/* ---- NODE ICON (type icon) ---- */
+.tree-node .node-icon {
+    font-size: 14px;
+    margin-right: 6px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+/* ---- NODE NAME ---- */
+.tree-node .node-name {
+    color: #ccc;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---- RIGHT CONTROLS (4-slot grid) ---- */
+.tree-node-controls {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.tree-node:hover .tree-node-controls,
+.tree-node-controls.always-visible {
+    opacity: 1;
+}
+
+/* Each control slot is exactly 16px wide */
+.ctrl-slot {
+    width: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Add/Eye/Lock button icons */
+.ctrl-slot .ctrl-btn {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #858585;
+    transition: color 0.15s;
+}
+
+.ctrl-slot .ctrl-btn:hover {
+    color: #e0e0e0;
+}
+
+.ctrl-slot .ctrl-add {
+    color: #6eb5ff;
+}
+
+.ctrl-slot .ctrl-add:hover {
+    color: #9ad0ff;
+}
+
+/* Color dot */
+.ctrl-slot .color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid #555;
+}
+
+/* ---- VISIBILITY/LOCK (functional classes) ---- */
+.ctrl-btn.hidden-layer {
+    opacity: 0.4;
+    color: var(--text-muted);
+}
+
+.ctrl-btn.is-locked {
+    color: #666666;
+}
+
+/* ---- LEGACY SELECTORS (for compatibility with Properties/History) ---- */
+/* These ensure old code that queries .tree-item, .visibility-btn etc still works */
 .layer-controls {
     margin-left: auto;
     display: flex;
@@ -200,14 +284,12 @@ ul.tree li {
     color: #666666;
 }
 
-.visibility-btn svg,
-.lock-btn svg {
-    width: 12px;
-    height: 12px;
-    stroke-width: 1.5;
+.visibility-btn i,
+.lock-btn i {
+    font-size: 12px;
 }
 
-/* Color picker (small circle) */
+/* Color picker (small circle) — kept for compatibility */
 .color-picker {
     width: 10px;
     height: 10px;
@@ -234,6 +316,17 @@ ul.tree li {
     border-radius: 50%;
 }
 
+/* ---- DRAG STATE ---- */
+.tree-node.dragging {
+    opacity: 0.4;
+}
+
+.tree-node.drag-over {
+    background-color: rgba(0, 122, 204, 0.15);
+    outline: 1px dashed var(--accent);
+}
+
+/* ---- RESPONSIVE ---- */
 @media (min-width: 768px) {
     #sidebar {
         bottom: 0;

@@ -1,5 +1,6 @@
 // ============================================================
-// SidebarController — Tabs, tree events, visibility/lock/color
+// SidebarController — Tree events, visibility/lock/color
+// Adapted for new mockup CAD tree design with Phosphor Icons
 // ============================================================
 
 import { EventBus } from '../core/EventBus.js';
@@ -11,7 +12,7 @@ import { syncSelectionEdges } from '../engine/SelectionRenderer.js';
 import { createIcons, $ } from '../utils/dom.js';
 
 /**
- * Initialize sidebar: tabs, tree click/dblclick, visibility/lock/color
+ * Initialize sidebar: toggle, tree click/dblclick, visibility/lock/color
  */
 export function initSidebar() {
     const sidebarEl = $('sidebar');
@@ -24,7 +25,6 @@ export function initSidebar() {
     const toggleExplorer = function () {
         const willOpen = !sidebarEl.classList.contains('open');
         sidebarEl.classList.toggle('open');
-        $('btn-top-explorer').classList.toggle('active', !willOpen); // Wait, if it WILL open, it becomes active. So active=willOpen
         $('btn-top-explorer').classList.toggle('active', willOpen);
         $('btn-act-explorer').classList.toggle('active', willOpen);
         if (willOpen) EventBus.emit('ui:closeOthers', 'sidebar');
@@ -41,51 +41,44 @@ export function initSidebar() {
         }
     });
 
-    // Tabs
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active');
-            $(btn.dataset.target).classList.add('active');
-            EventBus.emit('selection:clear');
-        });
-    });
+    // Tree click (select) — works on .tree-node elements
+    const treeContainer = $('tree-container');
+    if (treeContainer) {
+        treeContainer.addEventListener('click', e => {
+            // Don't interfere with controls or chevrons
+            if (e.target.closest('.tree-node-controls')) return;
+            if (e.target.closest('.chevron')) return;
 
-    // Tree click (select)
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.addEventListener('click', e => {
-            const caret = e.target.closest('.caret');
-            if (caret) {
-                caret.classList.toggle('caret-down');
-                const n = caret.parentElement.nextElementSibling;
-                if (n) n.classList.toggle('active-tree');
+            const nodeRow = e.target.closest('.tree-node');
+            if (!nodeRow) {
+                EventBus.emit('selection:clear');
                 return;
             }
-            if (e.target.closest('.layer-controls') || e.target.closest('.btn-add-node')) return;
-            const item = e.target.closest('.tree-item');
-            if (!item) { EventBus.emit('selection:clear'); return; }
-            const li = item.parentElement;
+
+            // Highlight selected
+            document.querySelectorAll('.tree-node.selected').forEach(n => n.classList.remove('selected'));
+            nodeRow.classList.add('selected');
+
             let mesh = null;
-            if (li.dataset.type === 'elemento') {
-                mesh = Registry.findStructureById(li.dataset.id);
+            if (nodeRow.dataset.type === 'elemento' && nodeRow.dataset.id) {
+                mesh = Registry.findStructureById(nodeRow.dataset.id);
             }
-            EventBus.emit('selection:select', { mesh, li, showProps: false });
+            EventBus.emit('selection:select', { mesh, li: nodeRow, showProps: false });
         });
 
         // Tree dblclick (select + show props)
-        tab.addEventListener('dblclick', e => {
-            if (e.target.closest('.layer-controls') || e.target.closest('.btn-add-node')) return;
-            const item = e.target.closest('.tree-item');
-            if (!item) return;
-            const li = item.parentElement;
+        treeContainer.addEventListener('dblclick', e => {
+            if (e.target.closest('.tree-node-controls')) return;
+            const nodeRow = e.target.closest('.tree-node');
+            if (!nodeRow) return;
+
             let mesh = null;
-            if (li.dataset.type === 'elemento') {
-                mesh = Registry.findStructureById(li.dataset.id);
+            if (nodeRow.dataset.type === 'elemento' && nodeRow.dataset.id) {
+                mesh = Registry.findStructureById(nodeRow.dataset.id);
             }
-            EventBus.emit('selection:select', { mesh, li, showProps: true });
+            EventBus.emit('selection:select', { mesh, li: nodeRow, showProps: true });
         });
-    });
+    }
 
     // Visibility toggle
     sidebarEl.addEventListener('click', e => {
@@ -95,10 +88,21 @@ export function initSidebar() {
         if (btn) {
             e.stopPropagation();
             const targetId = btn.dataset.target;
+            if (!targetId) return;
             const isGroup = btn.dataset.isGroup === 'true';
-            const newState = btn.classList.contains('hidden-layer');
+            const isHidden = btn.classList.contains('hidden-layer');
+            const newState = isHidden; // if hidden, newState = true (make visible)
+
             btn.classList.toggle('hidden-layer', !newState);
-            btn.innerHTML = newState ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
+
+            // Update icon: eye vs eye-slash
+            if (newState) {
+                btn.classList.remove('ph-eye-slash');
+                btn.classList.add('ph-eye');
+            } else {
+                btn.classList.remove('ph-eye');
+                btn.classList.add('ph-eye-slash');
+            }
 
             Registry.getStructures().forEach(s => {
                 if ((isGroup && s.userData.group === targetId) || s.userData.id === targetId)
@@ -112,23 +116,38 @@ export function initSidebar() {
             if (isGroup) {
                 document.querySelectorAll(`.visibility-btn[data-parent="${targetId}"]`).forEach(childBtn => {
                     childBtn.classList.toggle('hidden-layer', !newState);
-                    childBtn.innerHTML = newState ? '<i data-lucide="eye"></i>' : '<i data-lucide="eye-off"></i>';
+                    if (newState) {
+                        childBtn.classList.remove('ph-eye-slash');
+                        childBtn.classList.add('ph-eye');
+                    } else {
+                        childBtn.classList.remove('ph-eye');
+                        childBtn.classList.add('ph-eye-slash');
+                    }
                 });
             }
 
             applyLayerVisibility(State.get('is3DMode'), State.get('isWireframe'));
-            createIcons();
             History.save();
         }
 
         if (lockBtn) {
             e.stopPropagation();
             const targetId = lockBtn.dataset.target;
+            if (!targetId) return;
             const isGroup = lockBtn.dataset.isGroup === 'true';
             const isLocked = lockBtn.classList.contains('is-locked');
             const newState = !isLocked;
+
             lockBtn.classList.toggle('is-locked', newState);
-            lockBtn.innerHTML = newState ? '<i data-lucide="lock"></i>' : '<i data-lucide="unlock"></i>';
+
+            // Update icon: lock-key vs lock-key-open
+            if (newState) {
+                lockBtn.classList.remove('ph-lock-key-open');
+                lockBtn.classList.add('ph-lock-key');
+            } else {
+                lockBtn.classList.remove('ph-lock-key');
+                lockBtn.classList.add('ph-lock-key-open');
+            }
 
             Registry.getStructures().forEach(s => {
                 if ((isGroup && s.userData.group === targetId) || s.userData.id === targetId)
@@ -138,11 +157,16 @@ export function initSidebar() {
             if (isGroup) {
                 document.querySelectorAll(`.lock-btn[data-parent="${targetId}"]`).forEach(childBtn => {
                     childBtn.classList.toggle('is-locked', newState);
-                    childBtn.innerHTML = newState ? '<i data-lucide="lock"></i>' : '<i data-lucide="unlock"></i>';
+                    if (newState) {
+                        childBtn.classList.remove('ph-lock-key-open');
+                        childBtn.classList.add('ph-lock-key');
+                    } else {
+                        childBtn.classList.remove('ph-lock-key');
+                        childBtn.classList.add('ph-lock-key-open');
+                    }
                 });
             }
 
-            createIcons();
             const selectedMesh = State.get('selectedMesh');
             if (selectedMesh && (selectedMesh.userData.id === targetId || selectedMesh.userData.group === targetId)) {
                 EventBus.emit('properties:refresh');
@@ -151,7 +175,7 @@ export function initSidebar() {
         }
     });
 
-    // Color picker real-time update
+    // Color picker real-time update (for legacy .layer-picker inputs if any remain)
     const handleColorUpdate = (e) => {
         if (!e.target.classList.contains('layer-picker')) return;
         const { target, isGroup } = e.target.dataset;

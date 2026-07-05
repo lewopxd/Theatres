@@ -55,20 +55,9 @@ async function boot() {
     await delay(60);
     loaderComplete('dom');
 
-    // STEP 2: Icons
+    // STEP 2: Icons (Phosphor Icons are CSS-based, no JS init needed)
     loaderActivate('icons', 'Cargando íconos…');
-    await new Promise(resolve => {
-        if (window.lucide) {
-            window.lucide.createIcons();
-            resolve();
-        } else {
-            window.addEventListener('load', () => {
-                if (window.lucide) window.lucide.createIcons();
-                resolve();
-            }, { once: true });
-            setTimeout(resolve, 2000);
-        }
-    });
+    await delay(100); // Small delay so Phosphor web font can start loading
     loaderComplete('icons');
 
     // STEP 3: Three.js (already imported)
@@ -162,6 +151,20 @@ async function boot() {
 
     await loaderDismiss();
     startAnimationLoop();
+
+    // ── DEV: Clear button handler ──
+    const btnClear = $('btn-clear-all');
+    if (btnClear) {
+        btnClear.addEventListener('click', () => {
+            if (confirm('¿Limpiar TODO? (localStorage + caches + reload)')) {
+                localStorage.clear();
+                if ('caches' in window) {
+                    caches.keys().then(names => names.forEach(n => caches.delete(n)));
+                }
+                location.reload(true);
+            }
+        });
+    }
 
     // ── Ruler visibility logic (reacts to mode changes) ──
     const updateRulerVisibility = () => {

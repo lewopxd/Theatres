@@ -90,6 +90,7 @@
     border-radius: 4px;
     transition: background 0.2s;
     flex-shrink: 0;
+    font-size: 18px;  /* Phosphor icon default size in toolbars */
 }
 
 .icon-btn:hover {

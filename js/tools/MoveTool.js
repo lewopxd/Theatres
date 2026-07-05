@@ -62,14 +62,11 @@ function getActiveBadge() {
 
 function getObjectName(mesh) {
     let objName = mesh.userData.shape || 'Objeto';
-    const li = document.querySelector(`li[data-id="${mesh.userData.id}"]`);
-    if (li) {
-        const treeItem = li.querySelector('.tree-item');
-        if (treeItem) {
-            const clone = treeItem.cloneNode(true);
-            const ctrls = clone.querySelector('.layer-controls');
-            if (ctrls) ctrls.remove();
-            objName = clone.innerText.trim() || objName;
+    const node = document.querySelector(`.tree-node[data-id="${mesh.userData.id}"]`);
+    if (node) {
+        const nameSpan = node.querySelector('.node-name');
+        if (nameSpan) {
+            objName = nameSpan.textContent.trim() || objName;
         }
     }
     return objName;

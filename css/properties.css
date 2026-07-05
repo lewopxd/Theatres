@@ -205,13 +205,12 @@
     background: var(--hover-bg);
 }
 
-.accordion-header svg {
-    width: 14px;
-    height: 14px;
+.accordion-header i {
+    font-size: 14px;
     transition: transform 0.2s;
 }
 
-.accordion-header.collapsed svg {
+.accordion-header.collapsed i {
     transform: rotate(-90deg);
 }
 

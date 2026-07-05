@@ -1,5 +1,6 @@
 // ============================================================
 // TopBarController — Top bar buttons and mode toggles
+// Migrated to Phosphor Icons (CSS classes)
 // ============================================================
 
 import * as THREE from 'three';
@@ -72,7 +73,10 @@ function initToggleView() {
         State.set('is3DMode', is3DMode);
 
         if (is3DMode) {
-            btnToggleView.innerHTML = '<i data-lucide="box"></i>';
+            // Switch icon to cube (3D)
+            const icon = btnToggleView.querySelector('i');
+            icon.className = 'ph ph-cube';
+
             toolbar2d.classList.remove('active');
             State.set('isSplit', false);
             container.classList.remove('split-active');
@@ -82,8 +86,7 @@ function initToggleView() {
             // Update single view badge for 3D
             const singleBadge = $('single-badge');
             if (singleBadge) {
-                singleBadge.innerHTML = `<i data-lucide="box"></i> <span>Perspectiva (3D)</span>`;
-                if (window.lucide) window.lucide.createIcons();
+                singleBadge.innerHTML = `<i class="ph ph-cube"></i> <span>Perspectiva (3D)</span>`;
             }
             State.set('isWireframe', State.get('previousWireframeState'));
             btnWireframe.classList.toggle('active', State.get('isWireframe'));
@@ -101,7 +104,10 @@ function initToggleView() {
 
             setActiveTool(State.get('activeTool'));
         } else {
-            btnToggleView.innerHTML = '<i data-lucide="square"></i>';
+            // Switch icon to square (2D)
+            const icon = btnToggleView.querySelector('i');
+            icon.className = 'ph ph-square';
+
             toolbar2d.classList.add('active');
             document.querySelector(`[data-mode="${State.get('active2DMode')}"]`)?.click();
             State.set('previousWireframeState', State.get('isWireframe'));
@@ -200,7 +206,7 @@ function initGrid() {
         </style>
         
         <div class="grid-modal-section">
-            <div class="grid-modal-title"><i data-lucide="grid" style="width: 14px; height: 14px;"></i> Cuadrícula Principal</div>
+            <div class="grid-modal-title"><i class="ph ph-grid-four" style="font-size: 14px;"></i> Cuadrícula Principal</div>
             <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
                 <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-visible" checked> Mostrar Grid</label>
                 <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-below"> Bajo el piso</label>
@@ -222,7 +228,7 @@ function initGrid() {
         </div>
 
         <div class="grid-modal-section">
-            <div class="grid-modal-title"><i data-lucide="crosshair" style="width: 14px; height: 14px;"></i> Ejes Centrales (0,0)</div>
+            <div class="grid-modal-title"><i class="ph ph-crosshair" style="font-size: 14px;"></i> Ejes Centrales (0,0)</div>
             <div style="display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap;">
                 <label class="switch-wrapper"><input type="checkbox" id="cfg-grid-showCenter" checked> Habilitar Ejes</label>
             </div>
@@ -275,7 +281,6 @@ function initGrid() {
 
     $('btn-grid').addEventListener('click', () => {
         gridModal.toggle();
-        lucide.createIcons(); // Refresh icons for the newly injected HTML
     });
 }
 
@@ -316,11 +321,14 @@ function init2DToolbar() {
                 // Update single view badge
                 const singleBadge = $('single-badge');
                 if (singleBadge) {
-                    const iconEl = btn.querySelector('[data-lucide]');
+                    const iconEl = btn.querySelector('i.ph');
                     if (iconEl) {
-                        const icon = iconEl.getAttribute('data-lucide');
-                        singleBadge.innerHTML = `<i data-lucide="${icon}"></i> <span>${btn.title}</span>`;
-                        if (window.lucide) window.lucide.createIcons();
+                        // Extract the Phosphor class (e.g., "ph-arrow-line-down")
+                        const classes = Array.from(iconEl.classList);
+                        const phClass = classes.find(c => c.startsWith('ph-'));
+                        if (phClass) {
+                            singleBadge.innerHTML = `<i class="ph ${phClass}"></i> <span>${btn.title}</span>`;
+                        }
                     }
                 }
             }
