@@ -110,12 +110,23 @@
 .status-item {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
+    background: rgba(15, 15, 20, 0.6);
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.status-item span {
+    font-family: "Inter", "Segoe UI", sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    color: #e0e0e0;
 }
 
 .status-item svg {
     width: 14px;
     height: 14px;
-    stroke-width: 2;
-    color: #ffffff;
+    stroke-width: 1.5;
+    color: #888888;
 }

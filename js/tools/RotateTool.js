@@ -30,6 +30,11 @@ let startAngle3D = 0;
 // Throttle: statusbar coords update at most once per rAF
 let _statusbarPending = false;
 
+function getActiveBadge() {
+    if (!State.get('isSplit')) return document.getElementById('single-badge');
+    return document.querySelector('.split-badge.tl');
+}
+
 export function initRotateDrag(e) {
     const selectedMesh = State.get('selectedMesh');
     if (!selectedMesh || !selectedMesh.userData.editable || selectedMesh.userData.locked || !State.get('is3DMode')) return;
@@ -117,6 +122,29 @@ export function initRotateDrag(e) {
 
     const canvasWrapper = $('canvas-wrapper');
     if (canvasWrapper) canvasWrapper.classList.add('dragging-rotate');
+
+    const badge = getActiveBadge();
+    if (badge) {
+        let coordsSpan = badge.querySelector('.drag-coords');
+        if (!coordsSpan) {
+            coordsSpan = document.createElement('div');
+            coordsSpan.className = 'drag-coords';
+            coordsSpan.style.position = 'absolute';
+            coordsSpan.style.top = 'calc(100% + 4px)';
+            coordsSpan.style.left = '0';
+            coordsSpan.style.whiteSpace = 'nowrap';
+            coordsSpan.style.background = 'rgba(15, 15, 15, 0.4)';
+            coordsSpan.style.padding = '3px 8px';
+            coordsSpan.style.borderRadius = '6px';
+            coordsSpan.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+            coordsSpan.style.color = '#ccc';
+            coordsSpan.style.fontWeight = '200';
+            coordsSpan.style.backdropFilter = 'blur(4px)';
+            badge.appendChild(coordsSpan);
+        }
+        coordsSpan.style.display = 'block';
+        coordsSpan.innerText = `Rotando...`;
+    }
 }
 
 export function performRotateDrag(e) {
@@ -196,6 +224,18 @@ export function performRotateDrag(e) {
             if (dragAxis === 'x') deltaAngle3D = -deltaAngle3D;
             RotationGizmo.updateHUD(dragAxis, startAngle3D, deltaAngle3D, e.clientX, e.clientY);
         }
+        
+        const badge = getActiveBadge();
+        if (badge) {
+            const coordsSpan = badge.querySelector('.drag-coords');
+            if (coordsSpan) {
+                const euler = new THREE.Euler().setFromQuaternion(newQuat, 'YXZ');
+                const rx = THREE.MathUtils.radToDeg(euler.x).toFixed(1);
+                const ry = THREE.MathUtils.radToDeg(euler.y).toFixed(1);
+                const rz = THREE.MathUtils.radToDeg(euler.z).toFixed(1);
+                coordsSpan.innerText = `X: ${rx}° | Y: ${ry}° | Z: ${rz}°`;
+            }
+        }
     }
 
     State.set('isDirty', true);
@@ -230,4 +270,10 @@ export function endRotateDrag(didMove = true) {
 
     const canvasWrapper = $('canvas-wrapper');
     if (canvasWrapper) canvasWrapper.classList.remove('dragging-rotate');
+    
+    const badge = getActiveBadge();
+    if (badge) {
+        const coordsSpan = badge.querySelector('.drag-coords');
+        if (coordsSpan) coordsSpan.style.display = 'none';
+    }
 }

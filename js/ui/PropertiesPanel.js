@@ -2,6 +2,7 @@
 // PropertiesPanel — Panel de propiedades inferior
 // ============================================================
 
+import * as THREE from 'three';
 import { State } from '../core/State.js';
 import { EventBus } from '../core/EventBus.js';
 import { Registry } from '../core/Registry.js';
@@ -453,6 +454,70 @@ function renderMeshProperties(mesh, wireColorHex, li) {
                 secPos.appendChild(createPropRow('Z', 'number', mesh.position.z.toFixed(2), v => updateMeshPos('z', parseFloat(v)), undefined, undefined, isLocked));
             }
             body.appendChild(secPos);
+        }
+    });
+
+    // Tab: Rotación
+    tabDefs.push({
+        title: 'Rotación',
+        build: (body) => {
+            const secRot = document.createElement('div');
+            secRot.className = 'prop-section';
+            
+            const euler = new THREE.Euler().setFromQuaternion(mesh.quaternion, 'YXZ');
+            const initRx = THREE.MathUtils.radToDeg(euler.x).toFixed(1);
+            const initRy = THREE.MathUtils.radToDeg(euler.y).toFixed(1);
+            const initRz = THREE.MathUtils.radToDeg(euler.z).toFixed(1);
+
+            let rowX, rowY, rowZ;
+            
+            const updateMeshRot = () => {
+                if (mesh.userData.locked) return;
+                
+                const rx = parseFloat(rowX.querySelector('input').value) || 0;
+                const ry = parseFloat(rowY.querySelector('input').value) || 0;
+                const rz = parseFloat(rowZ.querySelector('input').value) || 0;
+                
+                const newEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+                if (Settings.get('visualZUp')) {
+                    newEuler.x = THREE.MathUtils.degToRad(rx);
+                    newEuler.z = THREE.MathUtils.degToRad(ry);
+                    newEuler.y = THREE.MathUtils.degToRad(rz);
+                } else {
+                    newEuler.x = THREE.MathUtils.degToRad(rx);
+                    newEuler.y = THREE.MathUtils.degToRad(ry);
+                    newEuler.z = THREE.MathUtils.degToRad(rz);
+                }
+                
+                mesh.quaternion.setFromEuler(newEuler);
+                
+                const wire = Registry.findWireById(mesh.userData.id);
+                if (wire) wire.quaternion.copy(mesh.quaternion);
+                
+                mesh.updateMatrixWorld();
+                syncSelectionEdges(mesh);
+                EventBus.emit('statusbar:coords', { mesh });
+                History.save();
+                
+                if (window.RotationGizmo && window.RotationGizmo.getGroup().visible) {
+                    window.RotationGizmo.update();
+                }
+            };
+
+            if (Settings.get('visualZUp')) {
+                rowX = createPropRow('X (°)', 'number', initRx, updateMeshRot, undefined, undefined, isLocked);
+                rowY = createPropRow('Y (°)', 'number', initRz, updateMeshRot, undefined, undefined, isLocked);
+                rowZ = createPropRow('Z (°)', 'number', initRy, updateMeshRot, undefined, undefined, isLocked);
+            } else {
+                rowX = createPropRow('X (°)', 'number', initRx, updateMeshRot, undefined, undefined, isLocked);
+                rowY = createPropRow('Y (°)', 'number', initRy, updateMeshRot, undefined, undefined, isLocked);
+                rowZ = createPropRow('Z (°)', 'number', initRz, updateMeshRot, undefined, undefined, isLocked);
+            }
+            
+            secRot.appendChild(rowX);
+            secRot.appendChild(rowY);
+            secRot.appendChild(rowZ);
+            body.appendChild(secRot);
         }
     });
 
