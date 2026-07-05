@@ -353,7 +353,7 @@ gizmoGroup.renderOrder = 300;
 const centerSphereGroup = new THREE.Group();
 centerSphereGroup.name = '__centerSphereGroup__';
 
-const sphereRadius = 0.05;
+const sphereRadius = 0.02;
 
 const sphereWireMat = new THREE.LineBasicMaterial({ 
     color: 0x666666, 
@@ -629,6 +629,47 @@ createRing('z', new THREE.Euler(Math.PI / 2, 0, 0));   // Verde (Eje Y CAD)
 
 scene.add(gizmoGroup);
 
+// === HUD GROUP ===
+const hudGroup = new THREE.Group();
+hudGroup.visible = false;
+
+const hudAnchorGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0,0,RADIUS)]);
+const hudAnchorMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthTest: false });
+const hudAnchorLine = new THREE.Line(hudAnchorGeo, hudAnchorMat);
+hudAnchorLine.renderOrder = RENDER_ORDER_BASE.ribbon + 5;
+hudGroup.add(hudAnchorLine);
+
+const hudCurrentGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0,0,RADIUS)]);
+const hudCurrentMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false });
+const hudCurrentLine = new THREE.Line(hudCurrentGeo, hudCurrentMat);
+hudCurrentLine.renderOrder = RENDER_ORDER_BASE.ribbon + 5;
+hudGroup.add(hudCurrentLine);
+
+const hudArcMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, depthTest: false, side: THREE.DoubleSide });
+const hudArcMesh = new THREE.Mesh(new THREE.BufferGeometry(), hudArcMat);
+hudArcMesh.renderOrder = RENDER_ORDER_BASE.ribbon + 4;
+hudGroup.add(hudArcMesh);
+
+gizmoGroup.add(hudGroup);
+
+const hudDomElement = document.createElement('div');
+hudDomElement.style.position = 'fixed';
+hudDomElement.style.pointerEvents = 'none';
+hudDomElement.style.zIndex = '99999';
+hudDomElement.style.display = 'none';
+hudDomElement.style.background = 'rgba(25, 25, 30, 0.75)';
+hudDomElement.style.border = '1px solid rgba(255, 255, 255, 0.3)';
+hudDomElement.style.borderRadius = '16px';
+hudDomElement.style.color = '#ffffff';
+hudDomElement.style.fontFamily = '"Inter", "Segoe UI", sans-serif';
+hudDomElement.style.fontWeight = 'bold';
+hudDomElement.style.fontSize = '13px';
+hudDomElement.style.padding = '4px 10px';
+hudDomElement.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+hudDomElement.style.backdropFilter = 'blur(4px)';
+document.body.appendChild(hudDomElement);
+
+
 let currentHover = null;
 let currentActive = null;
 let attachedMesh = null;
@@ -703,6 +744,81 @@ export const RotationGizmo = {
                 if (axis === 'x') shaderAngle = -shaderAngle;
                 rings[axis].fullLineMat.uniforms.uDragAngle.value = shaderAngle;
             }
+        }
+    },
+
+    getStartAngle3D(hitPoint, axis) {
+        if (!rings[axis]) return 0;
+        const localHit = hitPoint.clone();
+        rings[axis].group.worldToLocal(localHit);
+        return Math.atan2(localHit.x, localHit.z);
+    },
+
+    updateHUD(axis, startAngle3D, deltaAngle3D, mouseX, mouseY) {
+        if (!axis) {
+            hudGroup.visible = false;
+            hudDomElement.style.display = 'none';
+            return;
+        }
+        hudGroup.visible = true;
+        hudDomElement.style.display = 'block';
+        
+        hudGroup.quaternion.copy(rings[axis].group.quaternion);
+        
+        const ax = Math.sin(startAngle3D) * RADIUS;
+        const az = Math.cos(startAngle3D) * RADIUS;
+        hudAnchorLine.geometry.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(ax, 0, az)]);
+        
+        const currentAngle3D = startAngle3D + deltaAngle3D;
+        const cx = Math.sin(currentAngle3D) * RADIUS;
+        const cz = Math.cos(currentAngle3D) * RADIUS;
+        hudCurrentLine.geometry.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(cx, 0, cz)]);
+        
+        let renderSweep = deltaAngle3D;
+        if (renderSweep > Math.PI * 2) renderSweep = Math.PI * 2;
+        if (renderSweep < -Math.PI * 2) renderSweep = -Math.PI * 2;
+
+        const segments = 32;
+        const points = [new THREE.Vector3(0,0,0)];
+        const indices = [];
+        for (let i = 0; i <= segments; i++) {
+            const a = startAngle3D + (i / segments) * renderSweep;
+            points.push(new THREE.Vector3(Math.sin(a) * RADIUS, 0, Math.cos(a) * RADIUS));
+        }
+        for (let i = 1; i <= segments; i++) {
+            if (renderSweep > 0) indices.push(0, i, i + 1);
+            else indices.push(0, i + 1, i);
+        }
+        hudArcMesh.geometry.dispose();
+        hudArcMesh.geometry = new THREE.BufferGeometry().setFromPoints(points);
+        hudArcMesh.geometry.setIndex(indices);
+        
+        const color = AXIS_COLORS[axis];
+        hudAnchorMat.color.copy(color);
+        hudCurrentMat.color.copy(color);
+        hudArcMat.color.copy(color);
+        
+        const deg = THREE.MathUtils.radToDeg(deltaAngle3D);
+        const sign = deg >= 0 ? '+' : '';
+        const text = `${sign}${deg.toFixed(1)}°`;
+        
+        if (hudDomElement.innerText !== text) {
+            hudDomElement.innerText = text;
+        }
+        
+        if (mouseX !== undefined && mouseY !== undefined) {
+            const elWidth = hudDomElement.offsetWidth || 100;
+            const elHeight = hudDomElement.offsetHeight || 40;
+            const offset = 20;
+            
+            let left = mouseX + offset;
+            let top = mouseY + offset;
+            
+            if (left + elWidth > window.innerWidth) left = mouseX - offset - elWidth;
+            if (top + elHeight > window.innerHeight) top = mouseY - offset - elHeight;
+            
+            hudDomElement.style.left = left + 'px';
+            hudDomElement.style.top = top + 'px';
         }
     },
 

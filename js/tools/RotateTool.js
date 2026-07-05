@@ -25,6 +25,7 @@ let centerScreen = new THREE.Vector2();
 let lastAngle = 0;
 let totalAngle = 0;
 let axisSign = 1;
+let startAngle3D = 0;
 
 // Throttle: statusbar coords update at most once per rAF
 let _statusbarPending = false;
@@ -110,6 +111,10 @@ export function initRotateDrag(e) {
 
     axisSign = deltaAngleTest > 0 ? 1 : -1;
 
+    if (RotationGizmo.getStartAngle3D) {
+        startAngle3D = RotationGizmo.getStartAngle3D(hitInfo.point, dragAxis);
+    }
+
     const canvasWrapper = $('canvas-wrapper');
     if (canvasWrapper) canvasWrapper.classList.add('dragging-rotate');
 }
@@ -186,7 +191,14 @@ export function performRotateDrag(e) {
         if (RotationGizmo.setDashedLineDragAngle) {
             RotationGizmo.setDashedLineDragAngle(appliedAngle);
         }
+        if (RotationGizmo.updateHUD) {
+            let deltaAngle3D = appliedAngle;
+            if (dragAxis === 'x') deltaAngle3D = -deltaAngle3D;
+            RotationGizmo.updateHUD(dragAxis, startAngle3D, deltaAngle3D, e.clientX, e.clientY);
+        }
     }
+
+    State.set('isDirty', true);
 
     // Throttle statusbar update to at most once per animation frame
     if (!_statusbarPending) {
@@ -212,6 +224,7 @@ export function endRotateDrag(didMove = true) {
     }
 
     RotationGizmo.setActiveAxis(null);
+    if (RotationGizmo.updateHUD) RotationGizmo.updateHUD(null);
     dragObject = null;
     dragAxis = null;
 
