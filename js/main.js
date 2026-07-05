@@ -138,13 +138,13 @@ async function boot() {
     initToolShortcuts();
     initPlaneButtons();
     initToolButtons();
-    
+
     // Setup pointer events for canvas
     initCanvasPointerEvents(container);
 
     // Restore from localStorage (await ensures all 3D GLTFs finish loading)
     await History.restoreFromStorage();
-    
+
     // Remove the 3D loading overlay and unlock the UI
     const appShell = $('app-shell');
     if (appShell) {
@@ -202,7 +202,7 @@ function initCanvasPointerEvents(container) {
         }
 
         setRaycasterFromEvent(e);
-        
+
         // Update active controls for 2D mode so they don't all process the pan simultaneously
         if (!State.get('is3DMode')) {
             updateActiveOrthoControl(e, container, State.get('isSplit'));
@@ -215,17 +215,17 @@ function initCanvasPointerEvents(container) {
             // Check if clicking directly on the selected object OR the move handle
             if (selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
                 const raycaster = getRaycaster();
-                
+
                 // Temporarily make the mesh visible for raycasting (useful in 2D mode where it might be a wireframe)
                 const wasVisible = selectedMesh.visible;
                 selectedMesh.visible = true;
                 const intersects = raycaster.intersectObject(selectedMesh, true);
                 selectedMesh.visible = wasVisible;
-                
+
                 const hitHandle = MoveHandle.hitTest(raycaster);
                 const hitRotationObj = RotationGizmo.hitTest(raycaster);
                 const hitRotation = hitRotationObj ? hitRotationObj.axis : null;
-                
+
                 if (intersects.length > 0 || hitHandle || hitRotation) {
                     e.stopPropagation(); // Stop OrbitControls from panning
                     // Auto-activate move or rotate tool and start drag immediately
@@ -242,6 +242,12 @@ function initCanvasPointerEvents(container) {
                         }
                         initDrag(e);
                     }
+                    // Capturamos el puntero en el canvas: garantiza que pointermove/pointerup
+                    // sigan llegando aquí aunque el cursor salga del rect del canvas o pase
+                    // sobre otro elemento del DOM (paneles, gizmo de navegación, topbar) durante
+                    // un drag rápido. Sin esto, el navegador puede dejar de entregar eventos al
+                    // salir del elemento, lo que se sentía como rotación errática/mínima.
+                    renderer.domElement.setPointerCapture(e.pointerId);
                     State.set('hasDragged', false);
                     return;
                 }
@@ -249,6 +255,7 @@ function initCanvasPointerEvents(container) {
 
             if (tool === 'move' && selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
                 initDrag(e);
+                renderer.domElement.setPointerCapture(e.pointerId);
                 State.set('hasDragged', false);
             }
         }
@@ -279,12 +286,12 @@ function initCanvasPointerEvents(container) {
         const isDragging = State.get('isDragging');
 
         const activeTool = State.get('activeTool');
-        
+
         // Handle visibility of the center point (MoveHandle) and RotationGizmo
         if (selectedMesh && selectedMesh.userData.editable && !selectedMesh.userData.locked) {
             setRaycasterFromEvent(e);
             const raycaster = getRaycaster();
-            
+
             if (activeTool === 'rotate' && State.get('is3DMode')) {
                 const hitAxisObj = RotationGizmo.hitTest(raycaster);
                 RotationGizmo.setHover(hitAxisObj ? hitAxisObj.halfId : null);
@@ -303,12 +310,12 @@ function initCanvasPointerEvents(container) {
             );
             let intersects = raycaster.intersectObjects(visibleStructures, true);
             intersects = mapIntersectsToStructures(intersects, visibleStructures);
-            
+
             let hoverMesh = null;
             if (intersects.length > 0) {
                 hoverMesh = intersects[0].object;
             }
-            
+
             const prevHover = State.get('hoverMesh');
             if (prevHover !== hoverMesh) {
                 // Restore previous hover state
@@ -319,7 +326,7 @@ function initCanvasPointerEvents(container) {
                         }
                     });
                 }
-                
+
                 // Apply new hover state (3D only)
                 if (hoverMesh) {
                     hoverMesh.traverse(child => {
@@ -328,7 +335,7 @@ function initCanvasPointerEvents(container) {
                         }
                     });
                 }
-                
+
                 State.set('hoverMesh', hoverMesh);
             }
         } else if (!State.get('is3DMode')) {
@@ -350,11 +357,20 @@ function initCanvasPointerEvents(container) {
     };
 
     renderer.domElement.addEventListener('pointermove', e => {
-        checkHoverVisibility(e);
+        // Si NO estamos con el botón presionado, es simple hover: chequeo normal,
+        // incluyendo el bloqueo por UI (no queremos hover "fantasma" bajo un panel).
+        if (!isPointerDown) {
+            checkHoverVisibility(e);
+            return;
+        }
 
-        if (!isPointerDown) return;
-        if (isOverUI(e)) return;
-        
+        // Con el botón presionado y en medio de un drag activo, el evento se procesa
+        // SIEMPRE — sin cortar por isOverUI y sin gastar en el raycast de hover.
+        // Antes, isOverUI(e) devolvía early cada vez que el cursor pasaba por encima
+        // de un panel/gizmo/topbar superpuesto al canvas durante el arrastre, y
+        // checkHoverVisibility hacía un RotationGizmo.hitTest de más en cada frame:
+        // ambos perdían/retrasaban eventos de pointermove y se sentían como una
+        // rotación errática que apenas avanzaba unos milímetros.
         if (State.get('isDragging')) {
             const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
             if (dist >= DRAG_THRESHOLD) {
@@ -362,10 +378,18 @@ function initCanvasPointerEvents(container) {
                 if (State.get('activeTool') === 'rotate') performRotateDrag(e);
                 else performDrag(e);
             }
+            return;
         }
+
+        if (isOverUI(e)) return;
+        checkHoverVisibility(e);
     });
 
     renderer.domElement.addEventListener('pointerup', e => {
+        if (renderer.domElement.hasPointerCapture?.(e.pointerId)) {
+            renderer.domElement.releasePointerCapture(e.pointerId);
+        }
+
         if (!isPointerDown) return;
         isPointerDown = false;
 
@@ -376,13 +400,13 @@ function initCanvasPointerEvents(container) {
             const hasDragged = State.get('hasDragged');
             if (State.get('activeTool') === 'rotate') endRotateDrag(hasDragged);
             else endDrag(hasDragged);
-            
+
             const preDragTool = State.get('preDragTool');
             if (preDragTool) {
                 setActiveTool(preDragTool);
                 State.set('preDragTool', null);
             }
-            
+
             if (!hasDragged) {
                 handleSelectClick(e, pointerDownPos);
                 checkHoverVisibility(e);
@@ -391,7 +415,7 @@ function initCanvasPointerEvents(container) {
         }
 
         handleSelectClick(e, pointerDownPos);
-        
+
         // Check hover immediately after selection so the handle shows up without needing to move the mouse
         checkHoverVisibility(e);
     });

@@ -20,6 +20,21 @@ let gizmoRef = null;
 let containerRef = null;
 const clock = new THREE.Clock();
 
+// === DEBUG: acumuladores del render loop ===
+let __debugFrameCount = 0;
+let __debugLastRafTime = 0;
+let __debugRafGapTotal = 0;
+let __debugRafGapMax = 0;
+let __debugPersonasTotal = 0;
+let __debugPersonasMax = 0;
+let __debugSelectionLoopTotal = 0;
+let __debugSelectionLoopMax = 0;
+let __debugRenderFrameTotal = 0;
+let __debugRenderFrameMax = 0;
+let __debugReportIntervalMs = 2000; // imprime un resumen cada 2 segundos
+let __debugLastReportTime = 0;
+let __debugDrawCallsSample = null;
+
 /**
  * Initialize viewport manager
  * @param {HTMLElement} container — the canvas wrapper
@@ -190,6 +205,16 @@ export function renderFrame() {
         });
         RulerOverlay.setSplitData(quadrants);
     }
+
+    // === DEBUG: muestreo de draw calls / triángulos cada cierto tiempo ===
+    if (renderer.info) {
+        __debugDrawCallsSample = {
+            calls: renderer.info.render.calls,
+            triangles: renderer.info.render.triangles,
+            geometries: renderer.info.memory.geometries,
+            textures: renderer.info.memory.textures
+        };
+    }
 }
 
 /**
@@ -198,10 +223,107 @@ export function renderFrame() {
 export function startAnimationLoop() {
     function animate() {
         requestAnimationFrame(animate);
+
+        // === DEBUG: medir el gap real entre llamadas de rAF (el "pulso" del navegador) ===
+        const __rafNow = performance.now();
+        if (__debugLastRafTime) {
+            const __rafGap = __rafNow - __debugLastRafTime;
+            __debugRafGapTotal += __rafGap;
+            if (__rafGap > __debugRafGapMax) __debugRafGapMax = __rafGap;
+        }
+        __debugLastRafTime = __rafNow;
+
         const delta = clock.getDelta();
+
+        // === DEBUG: medir PersonasEngine.update ===
+        const __t1 = performance.now();
         PersonasEngine.update(delta);
+        const __personasTime = performance.now() - __t1;
+        __debugPersonasTotal += __personasTime;
+        if (__personasTime > __debugPersonasMax) __debugPersonasMax = __personasTime;
+
+        // === DEBUG: medir updateSelectionLoop ===
+        const __t2 = performance.now();
         updateSelectionLoop();
+        const __selectionLoopTime = performance.now() - __t2;
+        __debugSelectionLoopTotal += __selectionLoopTime;
+        if (__selectionLoopTime > __debugSelectionLoopMax) __debugSelectionLoopMax = __selectionLoopTime;
+
+        // === DEBUG: medir renderFrame (render real de Three.js) ===
+        const __t3 = performance.now();
         renderFrame();
+        const __renderFrameTime = performance.now() - __t3;
+        __debugRenderFrameTotal += __renderFrameTime;
+        if (__renderFrameTime > __debugRenderFrameMax) __debugRenderFrameMax = __renderFrameTime;
+
+        __debugFrameCount++;
+
+        // === DEBUG: warning inmediato si UN frame individual es muy pesado ===
+        const __totalFrame = __personasTime + __selectionLoopTime + __renderFrameTime;
+        if (__totalFrame > 20 && typeof window !== 'undefined' && window.__TECAL_DEBUG_LOOP === true) {
+            console.warn(
+                `[LOOP DEBUG] Frame pesado — TOTAL: ${__totalFrame.toFixed(2)}ms | ` +
+                `PersonasEngine.update: ${__personasTime.toFixed(2)}ms | ` +
+                `updateSelectionLoop: ${__selectionLoopTime.toFixed(2)}ms | ` +
+                `renderFrame: ${__renderFrameTime.toFixed(2)}ms`
+            );
+        }
+
+        // === DEBUG: resumen periódico (cada __debugReportIntervalMs) para ver el promedio real de FPS ===
+        if (typeof window !== 'undefined' && window.__TECAL_DEBUG_LOOP === true && __rafNow - __debugLastReportTime > __debugReportIntervalMs) {
+            const __avgRafGap = __debugRafGapTotal / __debugFrameCount;
+            const __fps = 1000 / __avgRafGap;
+            console.log(
+                `%c[LOOP DEBUG] ===== RESUMEN RENDER LOOP (últimos ${(__debugReportIntervalMs / 1000).toFixed(0)}s) =====`,
+                'color:#ffaa33;font-weight:bold;font-size:12px'
+            );
+            console.table({
+                'Frames en el período': __debugFrameCount,
+                'FPS promedio estimado': __fps.toFixed(1),
+                'Gap promedio entre rAF (ms)': __avgRafGap.toFixed(2),
+                'Gap máximo entre rAF (ms)': __debugRafGapMax.toFixed(2),
+                'PersonasEngine.update — promedio (ms)': (__debugPersonasTotal / __debugFrameCount).toFixed(3),
+                'PersonasEngine.update — máximo (ms)': __debugPersonasMax.toFixed(2),
+                'updateSelectionLoop — promedio (ms)': (__debugSelectionLoopTotal / __debugFrameCount).toFixed(3),
+                'updateSelectionLoop — máximo (ms)': __debugSelectionLoopMax.toFixed(2),
+                'renderFrame — promedio (ms)': (__debugRenderFrameTotal / __debugFrameCount).toFixed(3),
+                'renderFrame — máximo (ms)': __debugRenderFrameMax.toFixed(2)
+            });
+            if (__debugDrawCallsSample) {
+                console.log(
+                    `[LOOP DEBUG] Draw calls: ${__debugDrawCallsSample.calls} | Triángulos: ${__debugDrawCallsSample.triangles} | Geometrías en memoria: ${__debugDrawCallsSample.geometries} | Texturas en memoria: ${__debugDrawCallsSample.textures}`
+                );
+            }
+            if (performance.memory) {
+                const usedMB = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+                const totalMB = (performance.memory.totalJSHeapSize / 1048576).toFixed(1);
+                const limitMB = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(1);
+                console.log(`[LOOP DEBUG] Heap JS: ${usedMB}MB usados / ${totalMB}MB reservados / ${limitMB}MB límite`);
+            }
+
+            // Diagnóstico automático
+            if (__avgRafGap > 20) {
+                console.warn('%c[LOOP DEBUG] DIAGNÓSTICO: el render loop corre por debajo de 50fps de forma sostenida — el cuello de botella está en el render, no en el drag de rotación.', 'color:#ff6666;font-weight:bold');
+            }
+            if (__debugRenderFrameMax > 15 && (__debugRenderFrameTotal / __debugFrameCount) > 8) {
+                console.warn('%c[LOOP DEBUG] DIAGNÓSTICO: renderFrame (el render.render real de Three.js) es el consumidor principal — revisar shaders, cantidad de draw calls o resolución/pixelRatio.', 'color:#ff6666;font-weight:bold');
+            }
+            if ((__debugPersonasTotal / __debugFrameCount) > 3) {
+                console.warn('%c[LOOP DEBUG] DIAGNÓSTICO: PersonasEngine.update tiene un costo significativo por frame, incluso sin interactuar con Personas.', 'color:#ff6666;font-weight:bold');
+            }
+
+            // Reset del período
+            __debugFrameCount = 0;
+            __debugRafGapTotal = 0;
+            __debugRafGapMax = 0;
+            __debugPersonasTotal = 0;
+            __debugPersonasMax = 0;
+            __debugSelectionLoopTotal = 0;
+            __debugSelectionLoopMax = 0;
+            __debugRenderFrameTotal = 0;
+            __debugRenderFrameMax = 0;
+            __debugLastReportTime = __rafNow;
+        }
     }
     animate();
 }

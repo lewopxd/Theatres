@@ -77,10 +77,15 @@ import { DragGhost } from './DragGhost.js';
 let currentSelectedMesh = null;
 let lastSyncTime = 0;
 
+// === DEBUG: contadores globales para ver cuántas veces se llama syncSelectionEdges
+// y cuánto tarda cada llamada, fuera del contexto del drag (por ejemplo desde updateLoop)
+let __debugSyncCallCount = 0;
+let __debugSyncCallTotal = 0;
+
 export function updateLoop() {
     // Prevent flickering: don't sync if dragging (ghost is active)
     if (DragGhost.isActive) return;
-    
+
     if (currentSelectedMesh && currentSelectedMesh.userData.isPersona) {
         const now = Date.now();
         if (now - lastSyncTime > 100) { // 10 FPS for bounding box updates
@@ -90,9 +95,12 @@ export function updateLoop() {
 }
 
 export function syncSelectionEdges(mesh) {
+    // === DEBUG: timer general de toda la función ===
+    const __syncStart = performance.now();
+
     currentSelectedMesh = mesh;
     lastSyncTime = Date.now();
-    
+
     if (!mesh) {
         selectionEdges.visible = false;
         selectionEdgesHidden.visible = false;
@@ -107,15 +115,20 @@ export function syncSelectionEdges(mesh) {
     selectionEdgesHidden.visible = false;
     selectionPersonaWire.visible = false;
     selectionEdges.geometry.dispose();
-    
+
     const is3DMode = State.get('is3DMode');
-    
+
     if (is3DMode) {
         const wire = Registry.findWireById(mesh.userData.id);
         const color = wire ? wire.userData.baseColor : new THREE.Color(0xffffff);
-        
+
         // 3D Mode: wireframe edges matching the object's geometry
         if (mesh.userData.isPersona) {
+            // === DEBUG: timer específico del bloque de reconstrucción de persona ===
+            const __personaStart = performance.now();
+            let __skinnedMeshCount = 0;
+            let __regularMeshCount = 0;
+
             selectionEdges.visible = false;
             selectionPersonaWire.visible = true;
             selectionPersonaWire.clear(); // remove old children
@@ -132,6 +145,7 @@ export function syncSelectionEdges(mesh) {
 
             mesh.traverse(child => {
                 if (child.isSkinnedMesh) {
+                    __skinnedMeshCount++; // === DEBUG ===
                     const wire = new THREE.SkinnedMesh(child.geometry, wireMat);
                     wire.bindMode = child.bindMode;
                     wire.bindMatrix.copy(child.bindMatrix);
@@ -163,6 +177,7 @@ export function syncSelectionEdges(mesh) {
                     hidden.scale.copy(child.scale);
                     personaWireHidden.add(hidden);
                 } else if (child.isMesh) {
+                    __regularMeshCount++; // === DEBUG ===
                     const wire = new THREE.Mesh(child.geometry, wireMat);
                     wire.position.copy(child.position);
                     wire.rotation.copy(child.rotation);
@@ -175,13 +190,22 @@ export function syncSelectionEdges(mesh) {
             personaWireMesh.position.set(0, 0, 0);
             personaWireMesh.rotation.set(0, 0, 0);
             personaWireMesh.scale.set(1, 1, 1);
-            
+
             personaWireHidden.position.set(0, 0, 0);
             personaWireHidden.rotation.set(0, 0, 0);
             personaWireHidden.scale.set(1, 1, 1);
 
             selectionPersonaWire.add(personaWireMesh);
             selectionPersonaWire.add(personaWireHidden);
+
+            // === DEBUG: reporte del bloque persona ===
+            const __personaTime = performance.now() - __personaStart;
+            if (__personaTime > 1) {
+                console.warn(
+                    `[SYNC DEBUG] Reconstrucción wireframe PERSONA: ${__personaTime.toFixed(2)}ms | ` +
+                    `SkinnedMesh clonados: ${__skinnedMeshCount} | Mesh normales: ${__regularMeshCount}`
+                );
+            }
         } else if (mesh.geometry) {
             selectionEdges.geometry = (mesh.userData.geoType === 'box') ? new THREE.WireframeGeometry(mesh.geometry) : new THREE.EdgesGeometry(mesh.geometry);
             selectionEdgesHidden.geometry = selectionEdges.geometry;
@@ -192,19 +216,19 @@ export function syncSelectionEdges(mesh) {
             selectionEdges.geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x, size.y, size.z));
             selectionEdgesHidden.geometry = selectionEdges.geometry;
         }
-        
+
         // Remove depthTest: false so normal selection isn't always on top
         selectionEdges.material.depthTest = true;
         selectionEdges.material.color.copy(color);
         selectionEdges.material.opacity = 1.0;
         selectionEdges.material.dashSize = 1000; // effectively solid
-        
+
         if (!mesh.userData.isPersona) {
             selectionEdgesHidden.material.color.copy(color).multiplyScalar(0.2);
             selectionEdgesHidden.material.opacity = 0.05;
             selectionEdgesHidden.visible = true;
         }
-        
+
         selectionEdges.material.gapSize = 0;
         cornerDots.forEach(d => d.visible = false);
     } else {
@@ -212,7 +236,7 @@ export function syncSelectionEdges(mesh) {
         let boxGeo;
         let w, h, d;
         let yOffset = 0;
-        
+
         if (mesh.userData.isPersona) {
             const box = PersonasEngine.computeSkinnedBoundingBox(mesh);
             box.min.multiply(mesh.scale);
@@ -221,7 +245,7 @@ export function syncSelectionEdges(mesh) {
             h = box.max.y - box.min.y;
             d = box.max.z - box.min.z;
             boxGeo = new THREE.BoxGeometry(w, h, d);
-            
+
             // Personas local box is usually centered differently than raw geometry bounding boxes.
             // The BoxGeometry is centered around origin. We must translate the geometry to align with the actual local box.
             const center = new THREE.Vector3();
@@ -247,23 +271,23 @@ export function syncSelectionEdges(mesh) {
         if (yOffset !== 0) {
             boxGeo.translate(0, yOffset, 0);
         }
-        
+
         selectionEdges.geometry = new THREE.EdgesGeometry(boxGeo);
         boxGeo.dispose();
-        
+
         // Compute line distances for dashed material to work
         selectionEdges.computeLineDistances();
-        
+
         selectionEdges.material.color.setHex(0xffffff);
         selectionEdges.material.opacity = 0.5;
         selectionEdges.material.dashSize = 0.15;
         selectionEdges.material.gapSize = 0.1;
-        
+
         // Position the 20 dots in LOCAL space (relative to the group)
         const hw = w / 2;
         const hh = h / 2;
         const hd = d / 2;
-        
+
         let boxCenter = new THREE.Vector3(0, yOffset, 0);
         if (mesh.userData.isPersona) {
             const box = PersonasEngine.computeSkinnedBoundingBox(mesh);
@@ -275,37 +299,37 @@ export function syncSelectionEdges(mesh) {
         const pts = [
             // 8 corners
             new THREE.Vector3(-hw + boxCenter.x, -hh + boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x, -hh + boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3(-hw + boxCenter.x,  hh + boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x,  hh + boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3(-hw + boxCenter.x, -hh + boxCenter.y,  hd + boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x, -hh + boxCenter.y,  hd + boxCenter.z),
-            new THREE.Vector3(-hw + boxCenter.x,  hh + boxCenter.y,  hd + boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x,  hh + boxCenter.y,  hd + boxCenter.z),
-            
+            new THREE.Vector3(hw + boxCenter.x, -hh + boxCenter.y, -hd + boxCenter.z),
+            new THREE.Vector3(-hw + boxCenter.x, hh + boxCenter.y, -hd + boxCenter.z),
+            new THREE.Vector3(hw + boxCenter.x, hh + boxCenter.y, -hd + boxCenter.z),
+            new THREE.Vector3(-hw + boxCenter.x, -hh + boxCenter.y, hd + boxCenter.z),
+            new THREE.Vector3(hw + boxCenter.x, -hh + boxCenter.y, hd + boxCenter.z),
+            new THREE.Vector3(-hw + boxCenter.x, hh + boxCenter.y, hd + boxCenter.z),
+            new THREE.Vector3(hw + boxCenter.x, hh + boxCenter.y, hd + boxCenter.z),
+
             // 12 midpoints of edges
             new THREE.Vector3(boxCenter.x, -hh + boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3(boxCenter.x,  hh + boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3(boxCenter.x, -hh + boxCenter.y,  hd + boxCenter.z),
-            new THREE.Vector3(boxCenter.x,  hh + boxCenter.y,  hd + boxCenter.z),
-            
+            new THREE.Vector3(boxCenter.x, hh + boxCenter.y, -hd + boxCenter.z),
+            new THREE.Vector3(boxCenter.x, -hh + boxCenter.y, hd + boxCenter.z),
+            new THREE.Vector3(boxCenter.x, hh + boxCenter.y, hd + boxCenter.z),
+
             new THREE.Vector3(-hw + boxCenter.x, boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x, boxCenter.y, -hd + boxCenter.z),
-            new THREE.Vector3(-hw + boxCenter.x, boxCenter.y,  hd + boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x, boxCenter.y,  hd + boxCenter.z),
-            
+            new THREE.Vector3(hw + boxCenter.x, boxCenter.y, -hd + boxCenter.z),
+            new THREE.Vector3(-hw + boxCenter.x, boxCenter.y, hd + boxCenter.z),
+            new THREE.Vector3(hw + boxCenter.x, boxCenter.y, hd + boxCenter.z),
+
             new THREE.Vector3(-hw + boxCenter.x, -hh + boxCenter.y, boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x, -hh + boxCenter.y, boxCenter.z),
-            new THREE.Vector3(-hw + boxCenter.x,  hh + boxCenter.y, boxCenter.z),
-            new THREE.Vector3( hw + boxCenter.x,  hh + boxCenter.y, boxCenter.z)
+            new THREE.Vector3(hw + boxCenter.x, -hh + boxCenter.y, boxCenter.z),
+            new THREE.Vector3(-hw + boxCenter.x, hh + boxCenter.y, boxCenter.z),
+            new THREE.Vector3(hw + boxCenter.x, hh + boxCenter.y, boxCenter.z)
         ];
-        
+
         for (let i = 0; i < 20; i++) {
             cornerDots[i].position.copy(pts[i]);
             cornerDots[i].visible = true;
         }
     }
-    
+
     // Position the group at the mesh's world transform
     selectionGroup.position.copy(mesh.position);
     selectionGroup.rotation.copy(mesh.rotation);
@@ -318,6 +342,35 @@ export function syncSelectionEdges(mesh) {
     // Keep move handle synced
     MoveHandle.update(mesh);
     RotationGizmo.update(mesh);
+
+    // === DEBUG: reporte total de la función, con contador acumulado global ===
+    const __syncTotal = performance.now() - __syncStart;
+    __debugSyncCallCount++;
+    __debugSyncCallTotal += __syncTotal;
+    if (__syncTotal > 2 && typeof window !== 'undefined' && window.__TECAL_DEBUG_ROTATE === true) {
+        console.warn(
+            `[SYNC DEBUG] syncSelectionEdges TOTAL: ${__syncTotal.toFixed(2)}ms | ` +
+            `mesh: "${mesh.userData.id || mesh.name}" | isPersona: ${!!mesh.userData.isPersona} | ` +
+            `is3DMode: ${is3DMode} | llamada #${__debugSyncCallCount} | promedio histórico: ${(__debugSyncCallTotal / __debugSyncCallCount).toFixed(2)}ms`
+        );
+    }
+}
+
+/**
+ * Lightweight transform sync — only copies position/rotation/scale from the mesh
+ * to the selectionGroup WITHOUT disposing/rebuilding geometry.
+ * Use during drag operations where the object's shape hasn't changed.
+ * @param {THREE.Mesh} mesh
+ */
+export function syncSelectionTransformOnly(mesh) {
+    if (!mesh) return;
+    selectionGroup.position.copy(mesh.position);
+    selectionGroup.rotation.copy(mesh.rotation);
+    if (mesh.userData.isPersona) {
+        selectionGroup.scale.set(1, 1, 1);
+    } else {
+        selectionGroup.scale.copy(mesh.scale);
+    }
 }
 
 /**
@@ -328,7 +381,7 @@ export function syncSelectionEdges(mesh) {
 export function updateSelectionPosition(pos, mesh = null) {
     selectionGroup.position.copy(pos);
     MoveHandle.setPosition(pos, mesh);
-    
+
     // Hide solid selection wire during drag so the translucent ghost is visible
     if (mesh && mesh.userData.isPersona) {
         selectionPersonaWire.visible = false;
@@ -337,5 +390,3 @@ export function updateSelectionPosition(pos, mesh = null) {
         selectionEdgesHidden.visible = false;
     }
 }
-
-

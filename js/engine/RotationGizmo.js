@@ -189,7 +189,7 @@ const diskFragmentShader = `
     uniform float uOpacity;
     
     uniform float uIsActive;
-    uniform float uHasArrow; 
+    uniform float uHasArrow;
     uniform float uStartAngle;
     uniform float uRadius;
     uniform float uRibbonWidth;
@@ -506,6 +506,11 @@ let currentHover = null;
 let currentActive = null;
 let attachedMesh = null;
 
+// === DEBUG: contadores para medir el costo de update() a lo largo del tiempo ===
+let __debugUpdateCallCount = 0;
+let __debugUpdateTotal = 0;
+let __debugUpdateMax = 0;
+
 export const RotationGizmo = {
     show(mesh) {
         if (!mesh || !mesh.userData.editable || mesh.userData.locked || !State.get('is3DMode')) {
@@ -528,7 +533,24 @@ export const RotationGizmo = {
     update() {
         if (!attachedMesh || !gizmoGroup.visible) return;
 
+        // === DEBUG: medir el costo de getObjectBounds en cada llamada ===
+        const __t = performance.now();
         const { center } = getObjectBounds(attachedMesh);
+        const __boundsTime = performance.now() - __t;
+
+        __debugUpdateCallCount++;
+        __debugUpdateTotal += __boundsTime;
+        if (__boundsTime > __debugUpdateMax) __debugUpdateMax = __boundsTime;
+
+        if (__boundsTime > 1 && typeof window !== 'undefined' && window.__TECAL_DEBUG_ROTATE === true) {
+            console.warn(
+                `[GIZMO DEBUG] getObjectBounds: ${__boundsTime.toFixed(2)}ms | ` +
+                `mesh: "${attachedMesh.userData.id || attachedMesh.name}" | ` +
+                `isPersona: ${!!attachedMesh.userData.isPersona} | ` +
+                `llamada #${__debugUpdateCallCount} | promedio histórico: ${(__debugUpdateTotal / __debugUpdateCallCount).toFixed(2)}ms | máximo: ${__debugUpdateMax.toFixed(2)}ms`
+            );
+        }
+
         gizmoGroup.position.copy(center);
         gizmoGroup.quaternion.identity();
     },
@@ -664,6 +686,25 @@ export const RotationGizmo = {
                 }
             });
         });
+    },
+
+    /**
+     * Lightweight position sync — copies the mesh's world-space center
+     * to the gizmo WITHOUT recalculating getObjectBounds.
+     * Use during drag operations (the center doesn't change relative to the mesh).
+     */
+    syncPositionOnly(mesh) {
+        if (!mesh || !gizmoGroup.visible) return;
+        // The cached _localCenter is set once during the first getObjectBounds call.
+        // During rotation, the local center doesn't change — we just need to
+        // transform it to world space using the mesh's current matrixWorld.
+        if (mesh.userData._localCenter) {
+            gizmoGroup.position.copy(mesh.userData._localCenter).applyMatrix4(mesh.matrixWorld);
+        } else {
+            // Fallback: use mesh position directly (shouldn't happen if show() was called)
+            gizmoGroup.position.copy(mesh.position);
+        }
+        gizmoGroup.quaternion.identity();
     },
 
     getPosition() { return gizmoGroup.position; },
