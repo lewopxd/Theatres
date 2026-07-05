@@ -3,6 +3,7 @@ import { scene } from './SceneManager.js';
 import { State } from '../core/State.js';
 import { PersonasEngine } from './PersonasEngine.js';
 import { getObjectBounds } from './MoveHandle.js';
+import appConfig from '../data/config.json' with { type: 'json' };
 
 /**
  * SISTEMA DE COORDENADAS (APP vs THREE.JS):
@@ -553,6 +554,22 @@ export const RotationGizmo = {
 
         gizmoGroup.position.copy(center);
         gizmoGroup.quaternion.identity();
+    },
+
+    syncCamera(camera, windowHeight) {
+        if (!gizmoGroup.visible || !camera || !camera.isPerspectiveCamera) return;
+        
+        const targetPixelSize = appConfig.rotationGizmo.targetPixelSize || 180;
+        
+        const distance = camera.position.distanceTo(gizmoGroup.position);
+        const fov = THREE.MathUtils.degToRad(camera.fov);
+        const vFovHeight = 2 * Math.tan(fov / 2) * distance;
+        
+        // Gizmo's natural diameter in world units is RADIUS * 2
+        const currentDiameter = RADIUS * 2;
+        const scale = (targetPixelSize / windowHeight) * (vFovHeight / currentDiameter);
+        
+        gizmoGroup.scale.setScalar(scale);
     },
 
     hitTest(raycaster) {

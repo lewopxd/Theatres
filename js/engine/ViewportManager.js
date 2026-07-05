@@ -245,6 +245,12 @@ export function startAnimationLoop() {
         // === DEBUG: medir updateSelectionLoop ===
         const __t2 = performance.now();
         updateSelectionLoop();
+        
+        // Sync gizmo size to camera distance continuously
+        if (State.get('is3DMode')) {
+            RotationGizmo.syncCamera(cam3D, window.innerHeight);
+        }
+
         const __selectionLoopTime = performance.now() - __t2;
         __debugSelectionLoopTotal += __selectionLoopTime;
         if (__selectionLoopTime > __debugSelectionLoopMax) __debugSelectionLoopMax = __selectionLoopTime;
