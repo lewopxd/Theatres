@@ -5,6 +5,7 @@ import { PersonasEngine } from './PersonasEngine.js';
 import { getObjectBounds } from './MoveHandle.js';
 import appConfig from '../data/config.json' with { type: 'json' };
 import { GizmoDebugWindow } from '../ui/GizmoDebugWindow.js';
+import { Settings } from '../core/Settings.js';
 
 /**
  * SISTEMA DE COORDENADAS (APP vs THREE.JS):
@@ -650,6 +651,26 @@ const hudArcMesh = new THREE.Mesh(new THREE.BufferGeometry(), hudArcMat);
 hudArcMesh.renderOrder = RENDER_ORDER_BASE.ribbon + 4;
 hudGroup.add(hudArcMesh);
 
+const hudAxisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -RADIUS, 0), new THREE.Vector3(0, RADIUS, 0)]);
+const hudAxisMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1.0, depthTest: false });
+const hudAxisLine = new THREE.Line(hudAxisGeo, hudAxisMat);
+hudAxisLine.renderOrder = RENDER_ORDER_BASE.ribbon + 6;
+hudGroup.add(hudAxisLine);
+
+function createAxisLabelSprite() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(0.12, 0.12, 0.12);
+    sprite.renderOrder = RENDER_ORDER_BASE.ribbon + 7;
+    return { sprite, ctx, tex };
+}
+const hudAxisLabel = createAxisLabelSprite();
+hudGroup.add(hudAxisLabel.sprite);
+
 gizmoGroup.add(hudGroup);
 
 const hudDomElement = document.createElement('div');
@@ -797,13 +818,49 @@ export const RotationGizmo = {
         hudAnchorMat.color.copy(color);
         hudCurrentMat.color.copy(color);
         hudArcMat.color.copy(color);
+        hudAxisMat.color.copy(color);
+        
+        const axisLetter = Settings.get('visualZUp') 
+            ? (axis === 'x' ? 'X' : (axis === 'y' ? 'Z' : 'Y')) 
+            : axis.toUpperCase();
+        const cssColor = '#' + color.getHexString();
+        
+        // Position the label correctly so X is right, Z is up, Y is front
+        if (axis === 'x') {
+            hudAxisLabel.sprite.position.set(0, -RADIUS - 0.05, 0);
+            hudAxisLine.geometry.setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -RADIUS, 0)]);
+        } else {
+            hudAxisLabel.sprite.position.set(0, RADIUS + 0.05, 0);
+            hudAxisLine.geometry.setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, RADIUS, 0)]);
+        }
+        
+        hudAxisLabel.ctx.clearRect(0,0,64,64);
+        hudAxisLabel.ctx.fillStyle = cssColor;
+        hudAxisLabel.ctx.font = '300 42px "Inter", "Segoe UI", sans-serif';
+        hudAxisLabel.ctx.textAlign = 'center';
+        hudAxisLabel.ctx.textBaseline = 'middle';
+        hudAxisLabel.ctx.fillText(axisLetter, 32, 32);
+        hudAxisLabel.tex.needsUpdate = true;
         
         const deg = THREE.MathUtils.radToDeg(deltaAngle3D);
-        const sign = deg >= 0 ? '+' : '';
-        const text = `${sign}${deg.toFixed(1)}°`;
+        const isPos = deg >= 0;
+        const sign = isPos ? '+' : '-';
+        const absDeg = Math.abs(deg).toFixed(1);
         
-        if (hudDomElement.innerText !== text) {
-            hudDomElement.innerText = text;
+        const html = `<span>${sign}</span><span style="margin-left: 2px;">${absDeg}°</span>`;
+        
+        // We use a custom attribute to track state since we are comparing HTML
+        const stateKey = `${sign}_${absDeg}_${cssColor}`;
+        if (hudDomElement.getAttribute('data-state') !== stateKey) {
+            hudDomElement.innerHTML = html;
+            hudDomElement.setAttribute('data-state', stateKey);
+            
+            // Fondo oscuro, texto color eje
+            hudDomElement.style.backgroundColor = 'rgba(25, 25, 30, 0.9)';
+            hudDomElement.style.color = cssColor;
+            hudDomElement.style.border = `1px solid ${cssColor}`;
+            hudDomElement.style.outline = 'none';
+            hudDomElement.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
         }
         
         if (mouseX !== undefined && mouseY !== undefined) {
