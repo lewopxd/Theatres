@@ -9,6 +9,7 @@ import { $ } from '../utils/dom.js';
 import { RotationGizmo } from '../engine/RotationGizmo.js';
 import { cam3D as camera } from '../engine/CameraManager.js';
 import { renderer } from '../engine/SceneManager.js';
+import { GizmoDebugWindow } from '../ui/GizmoDebugWindow.js';
 
 let dragObject = null;
 let dragAxis = null;
@@ -16,6 +17,7 @@ let dragWorldAxis = new THREE.Vector3();
 let initialQuaternion = new THREE.Quaternion();
 let initialPosition = new THREE.Vector3();
 let pivotPoint = new THREE.Vector3();
+let initialGizmoQuaternion = new THREE.Quaternion();
 
 // "Steering wheel" atan2 — tracks angular position around gizmo center on screen.
 // Accumulates without limit: can rotate 360°, 720°, etc.
@@ -45,6 +47,10 @@ export function initRotateDrag(e) {
     RotationGizmo.setActiveAxis(hitInfo.halfId);
     initialQuaternion.copy(selectedMesh.quaternion);
     initialPosition.copy(selectedMesh.position);
+
+    if (typeof GizmoDebugWindow !== 'undefined' && GizmoDebugWindow.isGizmoRotateMode()) {
+        initialGizmoQuaternion.copy(RotationGizmo.getGroup().quaternion);
+    }
 
     let localAxis = new THREE.Vector3();
     if (dragAxis === 'x') localAxis.set(1, 0, 0);
@@ -137,27 +143,36 @@ export function performRotateDrag(e) {
 
     // Rotation from initial state (recalculated each frame — zero drift)
     const deltaQuat = new THREE.Quaternion().setFromAxisAngle(dragWorldAxis, appliedAngle);
-    const newQuat = deltaQuat.clone().multiply(initialQuaternion);
 
-    dragObject.quaternion.copy(newQuat);
+    if (typeof GizmoDebugWindow !== 'undefined' && GizmoDebugWindow.isGizmoRotateMode()) {
+        // === DEBUG MODE: ROTATE GIZMO ONLY ===
+        const newGizmoQuat = deltaQuat.clone().multiply(initialGizmoQuaternion);
+        RotationGizmo.getGroup().quaternion.copy(newGizmoQuat);
+        GizmoDebugWindow.updateAngles(new THREE.Euler().setFromQuaternion(newGizmoQuat));
+    } else {
+        // === NORMAL MODE: ROTATE OBJECT ===
+        const newQuat = deltaQuat.clone().multiply(initialQuaternion);
 
-    // Orbit the position around the pivot point
-    const offset = new THREE.Vector3().subVectors(initialPosition, pivotPoint);
-    offset.applyQuaternion(deltaQuat);
-    dragObject.position.copy(pivotPoint).add(offset);
+        dragObject.quaternion.copy(newQuat);
 
-    const wire = Registry.findWireById(dragObject.userData.id);
-    if (wire) {
-        wire.quaternion.copy(newQuat);
-        wire.position.copy(dragObject.position);
+        // Orbit the position around the pivot point
+        const offset = new THREE.Vector3().subVectors(initialPosition, pivotPoint);
+        offset.applyQuaternion(deltaQuat);
+        dragObject.position.copy(pivotPoint).add(offset);
+
+        const wire = Registry.findWireById(dragObject.userData.id);
+        if (wire) {
+            wire.quaternion.copy(newQuat);
+            wire.position.copy(dragObject.position);
+        }
+
+        // LIGHTWEIGHT: just update transform of selection edges — no geometry rebuild
+        syncSelectionTransformOnly(dragObject);
+
+        // LIGHTWEIGHT: just copy position — no getObjectBounds recalculation
+        dragObject.updateMatrixWorld();
+        RotationGizmo.syncPositionOnly(dragObject);
     }
-
-    // LIGHTWEIGHT: just update transform of selection edges — no geometry rebuild
-    syncSelectionTransformOnly(dragObject);
-
-    // LIGHTWEIGHT: just copy position — no getObjectBounds recalculation
-    dragObject.updateMatrixWorld();
-    RotationGizmo.syncPositionOnly(dragObject);
 
     // Throttle statusbar update to at most once per animation frame
     if (!_statusbarPending) {

@@ -4,6 +4,7 @@ import { State } from '../core/State.js';
 import { PersonasEngine } from './PersonasEngine.js';
 import { getObjectBounds } from './MoveHandle.js';
 import appConfig from '../data/config.json' with { type: 'json' };
+import { GizmoDebugWindow } from '../ui/GizmoDebugWindow.js';
 
 /**
  * SISTEMA DE COORDENADAS (APP vs THREE.JS):
@@ -35,7 +36,7 @@ import appConfig from '../data/config.json' with { type: 'json' };
 
 // Gizmo configuration
 const RADIUS = 0.4;
-const RIBBON_WIDTH = 0.04;
+let RIBBON_WIDTH = appConfig.rotationGizmo.ribbonWidth || 0.04;
 const HIT_TUBE = 0.15;
 
 const ARROW_SEGMENT_ARC_LENGTH = RADIUS * Math.PI;
@@ -553,7 +554,16 @@ export const RotationGizmo = {
         }
 
         gizmoGroup.position.copy(center);
-        gizmoGroup.quaternion.identity();
+        
+        if (typeof GizmoDebugWindow !== 'undefined' && GizmoDebugWindow.isGizmoRotateMode()) {
+            // Keep current rotation for debugging
+        } else {
+            gizmoGroup.quaternion.identity();
+        }
+    },
+
+    getGroup() {
+        return gizmoGroup;
     },
 
     syncCamera(camera, windowHeight) {
@@ -570,6 +580,40 @@ export const RotationGizmo = {
         const scale = (targetPixelSize / windowHeight) * (vFovHeight / currentDiameter);
         
         gizmoGroup.scale.setScalar(scale);
+    },
+
+    setRibbonWidth(newWidth) {
+        RIBBON_WIDTH = newWidth;
+        
+        // Clean up old rings
+        ['x', 'y', 'z'].forEach(a => {
+            if (rings[a]) {
+                const { group, halves } = rings[a];
+                gizmoGroup.remove(group);
+                
+                halves.forEach(half => {
+                    half.meshRibbon.geometry.dispose();
+                    half.meshRibbon.material.dispose();
+                    half.meshDisk.geometry.dispose();
+                    half.meshDisk.material.dispose();
+                    if (half.meshArrow) {
+                        half.meshArrow.geometry.dispose();
+                        half.meshArrow.material.dispose();
+                    }
+                    half.hitMeshRibbon.geometry.dispose();
+                    half.hitMeshRibbon.material.dispose();
+                    half.hitMeshDisk.geometry.dispose();
+                    half.hitMeshDisk.material.dispose();
+                });
+                
+                delete rings[a];
+            }
+        });
+        
+        // Recreate with new width
+        createRing('y', new THREE.Euler(0, 0, 0));             // Azul (Eje Z CAD)
+        createRing('x', new THREE.Euler(0, 0, Math.PI / 2));   // Morado (Eje X CAD)
+        createRing('z', new THREE.Euler(Math.PI / 2, 0, 0));   // Verde (Eje Y CAD)
     },
 
     hitTest(raycaster) {

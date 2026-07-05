@@ -1,5 +1,6 @@
 {
   "rotationGizmo": {
-    "targetPixelSize": 180
+    "targetPixelSize": 180,
+    "ribbonWidth": 0.065
   }
 }

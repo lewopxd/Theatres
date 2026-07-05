@@ -41,6 +41,7 @@ import { initTreeBuilder } from './ui/TreeBuilder.js';
 import { initStatusBar } from './ui/StatusBar.js';
 import { isOverUI } from './utils/dom.js';
 import { DRAG_THRESHOLD } from './utils/constants.js';
+import { GizmoDebugWindow } from './ui/GizmoDebugWindow.js';
 
 // ============================================================
 // BOOT SEQUENCE
@@ -138,6 +139,7 @@ async function boot() {
     initToolShortcuts();
     initPlaneButtons();
     initToolButtons();
+    GizmoDebugWindow.init();
 
     // Setup pointer events for canvas
     initCanvasPointerEvents(container);
