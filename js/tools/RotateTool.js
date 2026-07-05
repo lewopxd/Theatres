@@ -17,9 +17,12 @@ let initialQuaternion = new THREE.Quaternion();
 let initialPosition = new THREE.Vector3();
 let pivotPoint = new THREE.Vector3();
 
-// Tangent-based drag (same approach as the working prototype)
-let startMouse = new THREE.Vector2();
-let dragTangent2D = new THREE.Vector2();
+// "Steering wheel" atan2 — tracks angular position around gizmo center on screen.
+// Accumulates without limit: can rotate 360°, 720°, etc.
+let centerScreen = new THREE.Vector2();
+let lastAngle = 0;
+let totalAngle = 0;
+let axisSign = 1;
 
 // Throttle: statusbar coords update at most once per rAF
 let _statusbarPending = false;
@@ -48,7 +51,6 @@ export function initRotateDrag(e) {
     if (dragAxis === 'y') localAxis.set(0, 1, 0);
     if (dragAxis === 'z') localAxis.set(0, 0, 1);
 
-    // Global space rotation: axis is exactly the global axis
     dragWorldAxis.copy(localAxis).normalize();
 
     const centerPos = RotationGizmo.getPosition();
@@ -58,34 +60,42 @@ export function initRotateDrag(e) {
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
 
-    // Compute the 3D tangent at the hit point: cross(axis, hitVector)
-    const V = new THREE.Vector3().subVectors(hitInfo.point, centerPos);
-    const tangent3D = new THREE.Vector3().crossVectors(dragWorldAxis, V).normalize();
-
-    // Project hit point and hit+tangent to screen space using the RENDERER canvas
+    // Project gizmo center to screen pixels (using RENDERER canvas)
     const rect = renderer.domElement.getBoundingClientRect();
+    const pScreen = centerPos.clone().project(camera);
 
-    const pScreen = hitInfo.point.clone().project(camera);
-    const ptScreen = hitInfo.point.clone().add(tangent3D).project(camera);
+    centerScreen.x = (pScreen.x + 1) / 2 * rect.width;
+    centerScreen.y = -(pScreen.y - 1) / 2 * rect.height;
 
-    const px = (pScreen.x + 1) / 2 * rect.width;
-    const py = -(pScreen.y - 1) / 2 * rect.height;
-    const ptx = (ptScreen.x + 1) / 2 * rect.width;
-    const pty = -(ptScreen.y - 1) / 2 * rect.height;
+    // Start mouse in canvas-local coords
+    const startMouse = new THREE.Vector2(e.clientX - rect.left, e.clientY - rect.top);
+    lastAngle = Math.atan2(startMouse.y - centerScreen.y, startMouse.x - centerScreen.x);
+    totalAngle = 0;
 
-    dragTangent2D.set(ptx - px, pty - py);
+    // Compute axisSign: determines which screen rotation direction maps to
+    // positive 3D rotation. Done by testing a tiny positive 3D rotation and
+    // checking which direction it moves the hit point on screen.
+    const testQuat = new THREE.Quaternion().setFromAxisAngle(dragWorldAxis, 0.01);
+    const hitVector = new THREE.Vector3().subVectors(hitInfo.point, centerPos);
+    hitVector.applyQuaternion(testQuat);
+    const newHitPoint = centerPos.clone().add(hitVector);
 
-    // Fallback: if 3D tangent projection is degenerate (ring seen edge-on),
-    // compute 2D tangent as perpendicular to the screen-space radius.
-    if (dragTangent2D.length() < 0.5) {
-        const cScreen = centerPos.clone().project(camera);
-        const cx = (cScreen.x + 1) / 2 * rect.width;
-        const cy = -(cScreen.y - 1) / 2 * rect.height;
-        dragTangent2D.set(-(py - cy), px - cx);
-    }
+    const pScreenStart = hitInfo.point.clone().project(camera);
+    const pScreenNew = newHitPoint.clone().project(camera);
 
-    dragTangent2D.normalize();
-    startMouse.set(e.clientX - rect.left, e.clientY - rect.top);
+    const pxStart = (pScreenStart.x + 1) / 2 * rect.width;
+    const pyStart = -(pScreenStart.y - 1) / 2 * rect.height;
+    const pxNew = (pScreenNew.x + 1) / 2 * rect.width;
+    const pyNew = -(pScreenNew.y - 1) / 2 * rect.height;
+
+    const angleStart = Math.atan2(pyStart - centerScreen.y, pxStart - centerScreen.x);
+    const angleNew = Math.atan2(pyNew - centerScreen.y, pxNew - centerScreen.x);
+
+    let deltaAngleTest = angleNew - angleStart;
+    if (deltaAngleTest > Math.PI) deltaAngleTest -= Math.PI * 2;
+    if (deltaAngleTest < -Math.PI) deltaAngleTest += Math.PI * 2;
+
+    axisSign = deltaAngleTest > 0 ? 1 : -1;
 
     const canvasWrapper = $('canvas-wrapper');
     if (canvasWrapper) canvasWrapper.classList.add('dragging-rotate');
@@ -97,19 +107,36 @@ export function performRotateDrag(e) {
     const rect = renderer.domElement.getBoundingClientRect();
     const currentMouse = new THREE.Vector2(e.clientX - rect.left, e.clientY - rect.top);
 
-    // Tangent dot product — constant linear sensitivity, zero drift
-    const mouseDelta = new THREE.Vector2().subVectors(currentMouse, startMouse);
-    const moveAmount = mouseDelta.dot(dragTangent2D);
+    // "Steering wheel": atan2 angle from gizmo center to mouse
+    const currentAngle = Math.atan2(currentMouse.y - centerScreen.y, currentMouse.x - centerScreen.x);
 
-    let deltaAngle = moveAmount * 0.012;
+    // Frame-to-frame delta with unwrapping (handles -PI ↔ PI crossover)
+    let deltaAngle = currentAngle - lastAngle;
+    if (deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
+    if (deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
+
+    // Clamp per-frame delta: prevents edge-on instability.
+    // When a ring is seen edge-on, the projected center is very close to the
+    // mouse, and tiny pixel movements cause huge atan2 jumps.
+    // 30°/frame at 60fps = 1800°/sec max — far beyond human drag speed.
+    const MAX_DELTA = Math.PI / 6;
+    if (deltaAngle > MAX_DELTA) deltaAngle = MAX_DELTA;
+    if (deltaAngle < -MAX_DELTA) deltaAngle = -MAX_DELTA;
+
+    lastAngle = currentAngle;
+
+    // Accumulate — no limit: can spin 360°, 720°, ∞
+    totalAngle += deltaAngle;
+
+    let appliedAngle = totalAngle * axisSign;
 
     if (e.shiftKey) {
         const snap = THREE.MathUtils.degToRad(15);
-        deltaAngle = Math.round(deltaAngle / snap) * snap;
+        appliedAngle = Math.round(appliedAngle / snap) * snap;
     }
 
     // Rotation from initial state (recalculated each frame — zero drift)
-    const deltaQuat = new THREE.Quaternion().setFromAxisAngle(dragWorldAxis, deltaAngle);
+    const deltaQuat = new THREE.Quaternion().setFromAxisAngle(dragWorldAxis, appliedAngle);
     const newQuat = deltaQuat.clone().multiply(initialQuaternion);
 
     dragObject.quaternion.copy(newQuat);
