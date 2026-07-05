@@ -51,6 +51,13 @@ export function initRotateDrag(e) {
     if (typeof GizmoDebugWindow !== 'undefined' && GizmoDebugWindow.isGizmoRotateMode()) {
         initialGizmoQuaternion.copy(RotationGizmo.getGroup().quaternion);
     }
+    
+    if (RotationGizmo.getCenterSphereGroup) {
+        RotationGizmo.getCenterSphereGroup().quaternion.identity();
+    }
+    if (RotationGizmo.setDashedLineDragAngle) {
+        RotationGizmo.setDashedLineDragAngle(0);
+    }
 
     let localAxis = new THREE.Vector3();
     if (dragAxis === 'x') localAxis.set(1, 0, 0);
@@ -172,6 +179,13 @@ export function performRotateDrag(e) {
         // LIGHTWEIGHT: just copy position — no getObjectBounds recalculation
         dragObject.updateMatrixWorld();
         RotationGizmo.syncPositionOnly(dragObject);
+        
+        if (RotationGizmo.getCenterSphereGroup) {
+            RotationGizmo.getCenterSphereGroup().quaternion.copy(deltaQuat);
+        }
+        if (RotationGizmo.setDashedLineDragAngle) {
+            RotationGizmo.setDashedLineDragAngle(appliedAngle);
+        }
     }
 
     // Throttle statusbar update to at most once per animation frame

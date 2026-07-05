@@ -350,6 +350,68 @@ gizmoGroup.name = '__rotationGizmo__';
 gizmoGroup.visible = false;
 gizmoGroup.renderOrder = 300;
 
+const centerSphereGroup = new THREE.Group();
+centerSphereGroup.name = '__centerSphereGroup__';
+
+const sphereRadius = 0.05;
+
+const sphereWireMat = new THREE.LineBasicMaterial({ 
+    color: 0x666666, 
+    transparent: true,
+    opacity: 0.8,
+    depthTest: false 
+});
+
+// 4 Meridianos (Círculos verticales que pasan por los polos)
+for (let i = 0; i < 4; i++) {
+    const angle = (i / 4) * Math.PI;
+    const points = [];
+    for (let j = 0; j <= 32; j++) {
+        const a = (j / 32) * Math.PI * 2;
+        points.push(new THREE.Vector3(Math.cos(a) * sphereRadius, Math.sin(a) * sphereRadius, 0));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(geo, sphereWireMat);
+    line.rotation.y = angle;
+    line.renderOrder = 290;
+    centerSphereGroup.add(line);
+}
+
+// 3 Paralelos (Círculos horizontales)
+function createParallel(yOffset) {
+    const radius = Math.sqrt(sphereRadius * sphereRadius - yOffset * yOffset);
+    const points = [];
+    for (let j = 0; j <= 32; j++) {
+        const a = (j / 32) * Math.PI * 2;
+        points.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(geo, sphereWireMat);
+    line.rotation.x = Math.PI / 2;
+    line.position.y = yOffset;
+    line.renderOrder = 290;
+    return line;
+}
+
+centerSphereGroup.add(createParallel(0)); // Ecuador
+centerSphereGroup.add(createParallel(sphereRadius * 0.5)); // Trópico superior
+centerSphereGroup.add(createParallel(-sphereRadius * 0.5)); // Trópico inferior
+
+const sphereFillGeo = new THREE.SphereGeometry(sphereRadius, 32, 32);
+const sphereFillMat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.5,
+    depthTest: false
+});
+const sphereFillMesh = new THREE.Mesh(sphereFillGeo, sphereFillMat);
+sphereFillMesh.renderOrder = 289; // Draw just before the wire lines (290)
+centerSphereGroup.add(sphereFillMesh);
+
+centerSphereGroup.visible = false;
+
+gizmoGroup.add(centerSphereGroup);
+
 const rings = {};
 
 function createRing(axis, eulerRotation) {
@@ -485,16 +547,79 @@ function createRing(axis, eulerRotation) {
 
         halves.push({
             matRibbon, matDisk, matArrow,
-            meshRibbon, meshDisk, meshArrow,
-            hitMeshRibbon, hitMeshDisk,
+            meshRibbon, meshDisk, meshArrow, hitMeshRibbon, hitMeshDisk,
             id: half.id, axis
         });
     });
 
+    const fullPoints = [];
+    for (let j = 0; j <= 128; j++) {
+        const a = (j / 128) * Math.PI * 2;
+        // x = sin(a), z = cos(a) exactly matches CylinderGeometry theta convention
+        fullPoints.push(new THREE.Vector3(Math.sin(a) * RADIUS, 0, Math.cos(a) * RADIUS));
+    }
+    const fullLineGeo = new THREE.BufferGeometry().setFromPoints(fullPoints);
+    
+    const fullLineMat = new THREE.ShaderMaterial({
+        uniforms: {
+            uColor: { value: new THREE.Color(0xffffff) },
+            uDragAngle: { value: 0.0 },
+            uActiveStartAngle: { value: 0.0 },
+            uRadius: { value: RADIUS },
+            uDashSize: { value: 0.05 },
+            uGapSize: { value: 0.03 }
+        },
+        vertexShader: `
+            varying vec3 vLocalPos;
+            void main() {
+                vLocalPos = position;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 uColor;
+            uniform float uDragAngle;
+            uniform float uRadius;
+            uniform float uDashSize;
+            uniform float uGapSize;
+            
+            varying vec3 vLocalPos;
+            
+            void main() {
+                float PI = 3.14159265359;
+                float TAU = PI * 2.0;
+                
+                // Matches the ribbonFragmentShader perfectly
+                float theta = atan(vLocalPos.x, vLocalPos.z); 
+                if (theta < 0.0) theta += TAU;
+                
+                float arcLen = theta * uRadius;
+                float dragDist = uDragAngle * uRadius;
+                
+                float patternLen = uDashSize + uGapSize;
+                float posInPattern = mod(arcLen - dragDist, patternLen);
+                
+                if (posInPattern > uDashSize) {
+                    discard;
+                }
+                
+                gl_FragColor = vec4(uColor, 0.65);
+            }
+        `,
+        transparent: true,
+        depthTest: false
+    });
+    
+    const fullMeshLine = new THREE.Line(fullLineGeo, fullLineMat);
+    fullMeshLine.renderOrder = RENDER_ORDER_BASE.ribbon + 1;
+    fullMeshLine.visible = false;
+    
+    group.add(fullMeshLine);
+
     group.rotation.copy(eulerRotation);
     gizmoGroup.add(group);
 
-    rings[axis] = { group, halves };
+    rings[axis] = { group, halves, fullLineMat, fullMeshLine };
     return group;
 }
 
@@ -566,6 +691,21 @@ export const RotationGizmo = {
         return gizmoGroup;
     },
 
+    getCenterSphereGroup() {
+        return centerSphereGroup;
+    },
+
+    setDashedLineDragAngle(appliedAngle) {
+        if (currentActive) {
+            const axis = currentActive.split('_')[0];
+            if (rings[axis] && rings[axis].fullLineMat) {
+                let shaderAngle = appliedAngle;
+                if (axis === 'x') shaderAngle = -shaderAngle;
+                rings[axis].fullLineMat.uniforms.uDragAngle.value = shaderAngle;
+            }
+        }
+    },
+
     syncCamera(camera, windowHeight) {
         if (!gizmoGroup.visible || !camera || !camera.isPerspectiveCamera) return;
         
@@ -588,8 +728,13 @@ export const RotationGizmo = {
         // Clean up old rings
         ['x', 'y', 'z'].forEach(a => {
             if (rings[a]) {
-                const { group, halves } = rings[a];
+                const { group, halves, fullMeshLine, fullLineMat } = rings[a];
                 gizmoGroup.remove(group);
+                
+                if (fullMeshLine) {
+                    fullMeshLine.geometry.dispose();
+                    fullLineMat.dispose();
+                }
                 
                 halves.forEach(half => {
                     half.meshRibbon.geometry.dispose();
@@ -604,6 +749,10 @@ export const RotationGizmo = {
                     half.hitMeshRibbon.material.dispose();
                     half.hitMeshDisk.geometry.dispose();
                     half.hitMeshDisk.material.dispose();
+                    if (half.meshLine) {
+                        half.meshLine.geometry.dispose();
+                        half.lineMat.dispose();
+                    }
                 });
                 
                 delete rings[a];
@@ -682,10 +831,33 @@ export const RotationGizmo = {
         const highlightedId = currentActive || currentHover;
         const highlightedAxis = highlightedId ? highlightedId.split('_')[0] : null;
 
+        if (currentActive && highlightedAxis) {
+            centerSphereGroup.visible = true;
+            const baseColor = AXIS_COLORS[highlightedAxis];
+            const hoverColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.6);
+            const darkColor = baseColor.clone().multiplyScalar(0.4);
+            
+            sphereWireMat.color.copy(darkColor);
+            sphereFillMat.color.copy(hoverColor);
+        } else {
+            centerSphereGroup.visible = false;
+        }
+
         ['x', 'y', 'z'].forEach(a => {
             if (!rings[a]) return;
-            const isAxisActive = currentActive && currentActive.startsWith(a);
+            const isAxisActive = !!(currentActive && currentActive.startsWith(a));
             const axisBoost = (highlightedAxis === a) ? RENDER_ORDER_BOOST : 0;
+            
+            if (rings[a].fullMeshLine) {
+                rings[a].fullMeshLine.visible = isAxisActive;
+                if (isAxisActive) {
+                    const baseColor = AXIS_COLORS[a];
+                    const hoverColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.6);
+                    rings[a].fullLineMat.uniforms.uColor.value.copy(hoverColor);
+                    
+                    rings[a].fullMeshLine.renderOrder = RENDER_ORDER_BASE.ribbon + axisBoost + 3;
+                }
+            }
 
             rings[a].halves.forEach(half => {
                 const baseColor = AXIS_COLORS[a];
