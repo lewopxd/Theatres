@@ -35,14 +35,18 @@ export function initPropertiesPanel() {
         const p = $('properties-panel');
         const willOpen = p.classList.contains('collapsed');
         p.classList.toggle('collapsed');
-        $('btn-top-properties').classList.toggle('active', willOpen);
-        $('btn-act-properties').classList.toggle('active', willOpen);
+        
+        const topBtn = $('btn-top-properties');
+        if (topBtn) topBtn.classList.toggle('active', willOpen);
+        
+        const railBtn = $('nav-properties');
+        if (railBtn) railBtn.classList.toggle('active', willOpen);
+        
         if (willOpen) EventBus.emit('ui:closeOthers', 'properties');
     };
 
     $('prop-header').addEventListener('click', toggleProperties);
-    $('btn-top-properties').addEventListener('click', toggleProperties);
-    $('btn-act-properties').addEventListener('click', toggleProperties);
+    window._toggleProperties = toggleProperties;
 
     // Preload personas manifests
     PersonasEngine.fetchManifest('animaciones').then(d => animManifest = d);
@@ -51,8 +55,10 @@ export function initPropertiesPanel() {
     EventBus.on('ui:closeOthers', (source) => {
         if (source !== 'properties') {
             $('properties-panel').classList.add('collapsed');
-            $('btn-top-properties').classList.remove('active');
-            $('btn-act-properties').classList.remove('active');
+            const topBtn = $('btn-top-properties');
+            const railBtn = $('nav-properties');
+            if (topBtn) topBtn.classList.remove('active');
+            if (railBtn) railBtn.classList.remove('active');
         }
     });
 
@@ -115,8 +121,10 @@ export function selectObject(mesh, li, showProps = false) {
     updatePropertiesContent(mesh, li);
     if (showProps && propPanel().classList.contains('collapsed')) {
         propPanel().classList.remove('collapsed');
-        $('btn-top-properties').classList.add('active');
-        $('btn-act-properties').classList.add('active');
+        const btnTop = $('btn-top-properties');
+        if (btnTop) btnTop.classList.add('active');
+        const railBtn = $('nav-properties');
+        if (railBtn) railBtn.classList.add('active');
         EventBus.emit('ui:closeOthers', 'properties');
     }
 }
@@ -124,6 +132,33 @@ export function selectObject(mesh, li, showProps = false) {
 /**
  * Deselect all
  */
+function getNodeColorHex(li) {
+    if (!li) return '#ffffff';
+    const dot = li.querySelector('.color-dot');
+    if (dot) {
+        const bg = dot.style.backgroundColor;
+        if (bg) {
+            if (bg.startsWith('rgb')) {
+                const parts = bg.match(/\d+/g);
+                if (parts && parts.length >= 3) {
+                    const r = parseInt(parts[0]).toString(16).padStart(2, '0');
+                    const g = parseInt(parts[1]).toString(16).padStart(2, '0');
+                    const b = parseInt(parts[2]).toString(16).padStart(2, '0');
+                    return `#${r}${g}${b}`;
+                }
+            }
+            return bg;
+        }
+    }
+    const struct = Registry.findStructureById(li.dataset.id);
+    if (struct) {
+        if (struct.userData.color) return struct.userData.color;
+        const wire = Registry.findWireById(struct.userData.id);
+        if (wire) return `#${wire.userData.baseColor.getHexString()}`;
+    }
+    return '#ffffff';
+}
+
 export function deselectAll() {
     selectObject(null, null);
 }
@@ -136,7 +171,7 @@ function updatePropertiesContent(mesh, li) {
     }
     
     if (li && li.dataset.type === 'grupo') {
-        const groupColorHex = li.querySelector('.layer-picker')?.value || '#ffffff';
+        const groupColorHex = getNodeColorHex(li);
         $('prop-title-path').innerHTML = getBreadcrumbPathHTML(li, groupColorHex);
         createIcons({ root: $('prop-title-path') });
         renderGroupProperties(li, groupColorHex);
@@ -217,7 +252,7 @@ function createPropCheckbox(label, value, onChange, disabled = false) {
 }
 
 
-function applyGroupProperty(groupId, property, value) {
+export function applyGroupProperty(groupId, property, value) {
     const groupLi = document.querySelector(`.tree-node[data-id="${groupId}"]`);
     if (!groupLi) return;
 
@@ -233,9 +268,16 @@ function applyGroupProperty(groupId, property, value) {
         if (property === 'color') {
             const picker = li.querySelector('.layer-picker');
             if (picker) picker.value = value;
+            const dot = li.querySelector('.color-dot');
+            if (dot) dot.style.backgroundColor = value;
             if (wire) {
                 wire.userData.baseColor.set(value);
                 syncSelectionEdges(mesh);
+            }
+            // Save color on the folder itself if it is a folder
+            const struct = Registry.findStructureById(id);
+            if (struct && struct.userData.isFolder) {
+                struct.userData.color = value;
             }
         } else if (property === 'lock') {
             const btn = li.querySelector('.lock-btn');
@@ -256,6 +298,14 @@ function applyGroupProperty(groupId, property, value) {
         }
     });
 
+    // Also apply property directly to the group folder itself
+    const folder = Registry.findStructureById(groupId);
+    if (folder) {
+        if (property === 'color') folder.userData.color = value;
+        else if (property === 'lock') folder.userData.locked = value;
+        else if (property === 'visibility') folder.userData.layerVisible = value;
+    }
+
     createIcons({ root: groupLi });
 }
 
@@ -264,8 +314,11 @@ function renderGroupProperties(li, groupColorHex) {
     content.innerHTML = '';
     
     const groupId = li.dataset.id;
-    const isLocked = li.querySelector('.lock-btn').classList.contains('is-locked');
-    const isVisible = !li.querySelector('.visibility-btn').classList.contains('hidden-layer');
+    const lockEl = li.querySelector('.lock-btn');
+    const eyeEl = li.querySelector('.visibility-btn');
+    
+    const isLocked = lockEl ? lockEl.classList.contains('is-locked') : false;
+    const isVisible = eyeEl ? !eyeEl.classList.contains('hidden-layer') : true;
     
     // Wrap in prop-tab-content and accordion so it matches desktop styles
     const tab1 = document.createElement('div');
@@ -337,7 +390,7 @@ function updateNodeName(li, newName) {
     // Refresh breadcrumb if needed
     const propPath = $('prop-title-path');
     if (propPath) {
-        propPath.innerHTML = getBreadcrumbPathHTML(li, li.querySelector('.layer-picker')?.value || '#ffffff');
+        propPath.innerHTML = getBreadcrumbPathHTML(li, getNodeColorHex(li));
         createIcons({ root: propPath });
     }
 }
@@ -385,8 +438,8 @@ function renderMeshProperties(mesh, wireColorHex, li) {
             const wire = Registry.findWireById(data.id);
             secName.appendChild(createPropRow('Color Capa', 'color', wireColorHex, v => {
                 if (wire) wire.userData.baseColor.set(v);
-                const treeInput = document.querySelector(`.layer-picker[data-target="${data.id}"]`);
-                if (treeInput) treeInput.value = v;
+                const treeDot = document.querySelector(`.tree-node[data-id="${data.id}"] .color-dot`);
+                if (treeDot) treeDot.style.backgroundColor = v;
                 syncSelectionEdges(mesh);
                 const chevron = document.querySelector('.breadcrumb-chevron:last-of-type');
                 if (chevron) chevron.style.color = v;

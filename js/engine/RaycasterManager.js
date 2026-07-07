@@ -9,6 +9,7 @@ import { State } from '../core/State.js';
 import { Registry } from '../core/Registry.js';
 
 const raycaster = new THREE.Raycaster();
+raycaster.params.Line.threshold = 0.05; // 5 cm threshold to click exactly on lines
 const mouse = new THREE.Vector2();
 
 /**

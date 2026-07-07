@@ -73,7 +73,11 @@ export function applyLayerVisibility(is3DMode, isWireframe) {
                 }
             });
         } else {
-            m.visible = m.userData.layerVisible && !effectiveWireframe;
+            if (m.userData.id === 'contenedor-escenico') {
+                m.visible = m.userData.layerVisible;
+            } else {
+                m.visible = m.userData.layerVisible && !effectiveWireframe;
+            }
         }
     });
     Registry.getWires().forEach(w => {

@@ -1,39 +1,192 @@
 /* ============================================================
-   CONTEXT MENU — positional popup menu
+   CONTEXT MENU — positional popup menu (SkeneCAD Style)
    ============================================================ */
 .context-menu {
     position: fixed;
-    background: var(--modal-bg);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-    border-radius: 4px;
-    z-index: 3000;
+    background: rgba(30, 30, 30, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    border-radius: 8px;
+    z-index: 999999;
     display: none;
     flex-direction: column;
-    min-width: 160px;
-    max-height: 300px;
-    overflow-y: auto;
-    padding: 4px 0;
+    min-width: 180px;
+    max-width: 280px;
+    padding: 0 0 4px 0; /* Sit header flush with top border */
+    font-family: inherit;
+    transform: scale(0.9);
+    opacity: 0;
+    transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none; /* enabled dynamically */
 }
 
 .context-menu.active {
     display: flex;
+    pointer-events: auto;
+}
+
+/* Header style for submenus — SLIM VERSION */
+.context-menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 2px;
+    height: 22px; /* Very slim height */
+}
+
+.cm-title {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.5);
+    flex: 1;
+    text-align: center;
+    padding: 0 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.cm-back-btn, .cm-close-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    padding: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.cm-back-btn:hover, .cm-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.cm-back-btn i, .cm-close-btn i {
+    font-size: 11px;
+}
+
+/* List items */
+.context-menu-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 280px;
+    overflow-y: auto;
 }
 
 .context-menu-item {
-    padding: 8px 12px;
-    font-size: 12px;
-    color: var(--text-main);
+    padding: 6px 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.85);
     display: flex;
     align-items: center;
-    gap: 8px;
+    justify-content: space-between;
+    gap: 10px;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
 }
 
 .context-menu-item:hover {
-    background: var(--hover-bg);
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
 }
 
-.context-menu-item i {
+.cm-item-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.cm-item-left span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cm-item-left i {
     font-size: 14px;
+    color: #5b9bff; /* Accent blue color for icons */
+}
+
+.cm-item-arrow {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.3);
+    transition: transform 0.2s;
+}
+
+.context-menu-item:hover .cm-item-arrow {
+    color: rgba(255, 255, 255, 0.7);
+    transform: translateX(2px);
+}
+
+/* Input Row Styles */
+.editing-input-row {
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    cursor: default;
+}
+
+.editing-input-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: inherit;
+}
+
+.cm-input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 11px;
+    padding: 3px 6px;
+    outline: none;
+    min-width: 0;
+}
+
+.cm-input:focus {
+    border-color: #5b9bff;
+}
+
+.cm-confirm-btn, .cm-cancel-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    padding: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.cm-confirm-btn:hover {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.cm-cancel-btn:hover {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+/* Separator Line */
+.context-menu-separator {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 0;
 }

@@ -106,4 +106,19 @@ export class CADDimension {
     updateContourVisibility(mode3D) {
         if (this.contourMesh) this.contourMesh.visible = this.group.visible && mode3D;
     }
+
+    dispose() {
+        if (this.group) {
+            this.group.children.forEach(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (child.material.map) child.material.map.dispose();
+                    child.material.dispose();
+                }
+            });
+            if (this.group.parent) {
+                this.group.parent.remove(this.group);
+            }
+        }
+    }
 }

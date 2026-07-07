@@ -76,11 +76,19 @@ export const DuplicateEngine = {
             newWire.rotation.copy(newMesh.rotation);
             newWire.scale.copy(newMesh.scale);
             newWire.visible = originalWire.visible;
-            scene.add(newWire);
+            if (originalMesh.parent && originalMesh.parent !== scene) {
+                originalMesh.parent.add(newWire);
+            } else {
+                scene.add(newWire);
+            }
             Registry.addWire(newWire);
         }
 
-        scene.add(newMesh);
+        if (originalMesh.parent && originalMesh.parent !== scene) {
+            originalMesh.parent.add(newMesh);
+        } else {
+            scene.add(newMesh);
+        }
         Registry.addStructure(newMesh);
 
         this.duplicateDOM(originalLi, newId, newMesh.userData.name);
@@ -130,8 +138,13 @@ export const DuplicateEngine = {
             newWire.position.y += 0.85;
             newWire.visible = false; 
 
-            scene.add(newMesh);
-            scene.add(newWire);
+            if (originalMesh.parent && originalMesh.parent !== scene) {
+                originalMesh.parent.add(newMesh);
+                originalMesh.parent.add(newWire);
+            } else {
+                scene.add(newMesh);
+                scene.add(newWire);
+            }
             Registry.addStructure(newMesh);
             Registry.addWire(newWire);
 

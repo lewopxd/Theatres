@@ -21,15 +21,29 @@ export function initStatusBar() {
             }
             
             // Convert to degrees for rotation display
-            const euler = new THREE.Euler().setFromQuaternion(mesh.quaternion, 'YXZ');
-            const rx = THREE.MathUtils.radToDeg(euler.x).toFixed(1);
-            const ry = THREE.MathUtils.radToDeg(euler.y).toFixed(1);
-            const rz = THREE.MathUtils.radToDeg(euler.z).toFixed(1);
-            
-            if (Settings.get('visualZUp')) {
-                elRot.textContent = `${rx}° / ${rz}° / ${ry}°`;
+            if (mesh.quaternion) {
+                const euler = new THREE.Euler().setFromQuaternion(mesh.quaternion, 'YXZ');
+                const rx = THREE.MathUtils.radToDeg(euler.x).toFixed(1);
+                const ry = THREE.MathUtils.radToDeg(euler.y).toFixed(1);
+                const rz = THREE.MathUtils.radToDeg(euler.z).toFixed(1);
+                
+                if (Settings.get('visualZUp')) {
+                    elRot.textContent = `${rx}° / ${rz}° / ${ry}°`;
+                } else {
+                    elRot.textContent = `${rx}° / ${ry}° / ${rz}°`;
+                }
+            } else if (mesh.rotation) {
+                const rx = THREE.MathUtils.radToDeg(mesh.rotation.x || 0).toFixed(1);
+                const ry = THREE.MathUtils.radToDeg(mesh.rotation.y || 0).toFixed(1);
+                const rz = THREE.MathUtils.radToDeg(mesh.rotation.z || 0).toFixed(1);
+                
+                if (Settings.get('visualZUp')) {
+                    elRot.textContent = `${rx}° / ${rz}° / ${ry}°`;
+                } else {
+                    elRot.textContent = `${rx}° / ${ry}° / ${rz}°`;
+                }
             } else {
-                elRot.textContent = `${rx}° / ${ry}° / ${rz}°`;
+                elRot.textContent = `0.0° / 0.0° / 0.0°`;
             }
             
         } else {

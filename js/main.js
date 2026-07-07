@@ -5,6 +5,7 @@
 import { delay, createIcons, $ } from './utils/dom.js';
 import { State } from './core/State.js';
 import { Settings } from './core/Settings.js';
+import { Storage } from './core/Storage.js';
 import { EventBus } from './core/EventBus.js';
 import { History } from './core/History.js';
 import { Registry } from './core/Registry.js';
@@ -39,6 +40,7 @@ import { initSidebar } from './ui/SidebarController.js';
 import { initTopBar } from './ui/TopBarController.js';
 import { initTreeBuilder } from './ui/TreeBuilder.js';
 import { initStatusBar } from './ui/StatusBar.js';
+import { populateTeatroSelect } from './ui/CatalogController.js';
 import { isOverUI } from './utils/dom.js';
 import { DRAG_THRESHOLD } from './utils/constants.js';
 import { GizmoDebugWindow } from './ui/GizmoDebugWindow.js';
@@ -47,7 +49,7 @@ import { GizmoDebugWindow } from './ui/GizmoDebugWindow.js';
 // BOOT SEQUENCE
 // ============================================================
 async function boot() {
-    Settings.init();
+    await Settings.init();
 
     // STEP 1: DOM
     initLoader();
@@ -73,7 +75,7 @@ async function boot() {
     loaderActivate('scene', 'Construyendo escena…');
     await delay(30);
 
-    buildTheatre();
+    buildTheatre({ isEmpty: true });
     const dimsVisible = State.get('dimsVisible');
     Registry.getDimensions().forEach(d => d.setVisibility(dimsVisible, State.get('is3DMode')));
 
@@ -124,6 +126,7 @@ async function boot() {
     initSidebar();
     initTopBar(gizmo);
     initTreeBuilder();
+    populateTeatroSelect();
     initStatusBar();
     initToolShortcuts();
     initPlaneButtons();
@@ -157,11 +160,13 @@ async function boot() {
     if (btnClear) {
         btnClear.addEventListener('click', () => {
             if (confirm('¿Limpiar TODO? (localStorage + caches + reload)')) {
-                localStorage.clear();
-                if ('caches' in window) {
-                    caches.keys().then(names => names.forEach(n => caches.delete(n)));
-                }
-                location.reload(true);
+                Storage.clear().then(() => {
+                    localStorage.clear();
+                    if ('caches' in window) {
+                        caches.keys().then(names => names.forEach(n => caches.delete(n)));
+                    }
+                    location.reload(true);
+                });
             }
         });
     }

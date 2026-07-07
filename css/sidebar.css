@@ -1,7 +1,8 @@
 /* ============================================================
-   SIDEBAR — 2x2 tabs, tree (mockup CAD), layers, visibility/lock/color
+   SIDEBAR — 2x2 tabs, tree (compact CAD style inspired by Paneton),
+   layers, visibility/lock/color
    ============================================================ */
-#sidebar {
+#sidebar, #catalogo-panel {
     width: 280px;
     background-color: var(--bg-sidebar);
     border-right: 1px solid var(--border-color);
@@ -17,7 +18,7 @@
     box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
 }
 
-#sidebar.open {
+#sidebar.open, #catalogo-panel.open {
     left: 0;
 }
 
@@ -108,17 +109,27 @@
 .tree-scroll-area {
     flex: 1;
     overflow-y: auto;
-    padding: 6px;
+    padding: 4px 4px 4px 2px;
 }
 
-/* ---- TREE NODES (mockup CAD style) ---- */
+/* ============================================================
+   TREE DESIGN — Compact Paneton-inspired tree with guide lines
+   
+   Key idea: every nesting level gets a consistent small indent
+   (10px total = margin-left + padding-left). Guide lines are 
+   drawn with border-left. Leaf nodes sit slightly indented from
+   their parent folder to show hierarchy clearly.
+   ============================================================ */
+
+/* ---- TREE NODES ---- */
 .tree-node {
     display: flex;
     align-items: center;
-    padding: 4px 2px 4px 8px;
+    padding: 1px 2px 1px 2px;
     cursor: pointer;
     user-select: none;
     border-radius: 3px;
+    min-height: 21px;
 }
 
 .tree-node:hover {
@@ -129,45 +140,64 @@
     background-color: #37373d;
 }
 
-/* ---- TREE CHILDREN (nested/collapsible) ---- */
+/* ---- TREE CHILDREN (nested/collapsible) ---- 
+   Every level indents 10px total: 4px margin (line position) + 6px padding.
+   The border-left draws the guide line connecting siblings. */
 .tree-children {
-    padding-left: 16px;
-    border-left: 1px solid var(--border-color);
-    margin-left: 12px;
-    display: none; /* Hidden by default */
+    padding-left: 6px;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    margin-left: 4px;
+    display: none;
 }
 
 .tree-children.open {
     display: block;
 }
 
-/* ---- CHEVRON (expand/collapse) ---- */
+/* Leaf-only containers get the SAME indent as mixed containers.
+   This keeps hierarchy visible. The guide line is slightly 
+   more subtle for pure-leaf groups. */
+.tree-children.leaf-group {
+    padding-left: 6px;
+    margin-left: 4px;
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ---- CHEVRON (expand/collapse arrow) ---- */
 .tree-node .chevron {
-    font-size: 12px;
-    margin-right: 6px;
+    font-size: 10px;
+    margin-right: 2px;
     color: var(--text-muted);
-    transition: transform 0.2s ease;
+    transition: transform 0.15s ease;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     width: 12px;
+    height: 12px;
     flex-shrink: 0;
+    border-radius: 2px;
+}
+
+.tree-node .chevron:hover {
+    color: #ccc;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .tree-node .chevron.open {
     transform: rotate(90deg);
 }
 
-/* Spacer for leaf nodes (align with folder chevron) */
+/* Spacer for leaf nodes — same width as chevron so icons align */
 .tree-node .chevron-spacer {
-    width: 18px;
+    width: 14px;
     display: inline-block;
     flex-shrink: 0;
 }
 
-/* ---- NODE ICON (type icon) ---- */
+/* ---- NODE ICON (type icon — Phosphor) ---- */
 .tree-node .node-icon {
-    font-size: 14px;
-    margin-right: 6px;
+    font-size: 13px;
+    margin-right: 4px;
     color: var(--text-muted);
     flex-shrink: 0;
 }
@@ -175,10 +205,11 @@
 /* ---- NODE NAME ---- */
 .tree-node .node-name {
     color: #ccc;
-    font-size: 13px;
+    font-size: 11.5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.3;
 }
 
 /* ---- RIGHT CONTROLS (4-slot grid) ---- */
@@ -188,6 +219,8 @@
     flex-shrink: 0;
     opacity: 0;
     transition: opacity 0.15s;
+    margin-left: auto;
+    padding-left: 2px;
 }
 
 .tree-node:hover .tree-node-controls,
@@ -195,9 +228,9 @@
     opacity: 1;
 }
 
-/* Each control slot is exactly 16px wide */
+/* Each control slot — compact 14px */
 .ctrl-slot {
-    width: 16px;
+    width: 14px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -212,7 +245,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 11px;
     color: #858585;
     transition: color 0.15s;
 }
@@ -231,8 +264,8 @@
 
 /* Color dot */
 .ctrl-slot .color-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     border: 1px solid #555;
 }
@@ -248,7 +281,6 @@
 }
 
 /* ---- LEGACY SELECTORS (for compatibility with Properties/History) ---- */
-/* These ensure old code that queries .tree-item, .visibility-btn etc still works */
 .layer-controls {
     margin-left: auto;
     display: flex;
@@ -328,10 +360,10 @@
 
 /* ---- RESPONSIVE ---- */
 @media (min-width: 768px) {
-    #sidebar {
+    #sidebar, #catalogo-panel {
         bottom: 0;
     }
-    #sidebar.open {
+    #sidebar.open, #catalogo-panel.open {
         left: 48px;
     }
 }

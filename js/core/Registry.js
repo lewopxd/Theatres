@@ -49,6 +49,11 @@ export const Registry = {
         dimensions.push(dim);
     },
 
+    removeDimension(dim) {
+        const idx = dimensions.indexOf(dim);
+        if (idx !== -1) dimensions.splice(idx, 1);
+    },
+
     getDimensions() {
         return dimensions;
     },

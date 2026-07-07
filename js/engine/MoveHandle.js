@@ -8,6 +8,8 @@ import * as THREE from 'three';
 import { scene } from './SceneManager.js';
 import { State } from '../core/State.js';
 import { PersonasEngine } from './PersonasEngine.js';
+import { ProjectManager } from '../core/ProjectManager.js';
+import { DEFAULT_CONTAINER } from '../data/catalogs/theatres.catalog.js';
 
 const HIT_RADIUS = 0.25;
 
@@ -58,7 +60,14 @@ export function getObjectBounds(mesh) {
         mesh.userData._localCenter = new THREE.Vector3();
         mesh.userData._localSize = new THREE.Vector3();
         
-        if (mesh.userData.isPersona) {
+        if (mesh.userData.id === 'contenedor-escenico') {
+            mesh.userData._localCenter.set(0, 0, 0);
+            mesh.userData._localSize.set(
+                ProjectManager.currentProject.theatre.width || DEFAULT_CONTAINER.width,
+                ProjectManager.currentProject.theatre.height || DEFAULT_CONTAINER.height,
+                ProjectManager.currentProject.theatre.depth || DEFAULT_CONTAINER.depth
+            );
+        } else if (mesh.userData.isPersona) {
             const localBox = PersonasEngine.computeSkinnedBoundingBox(mesh);
             localBox.getCenter(mesh.userData._localCenter);
             localBox.getSize(mesh.userData._localSize);

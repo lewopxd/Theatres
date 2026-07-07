@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Visualización 3D - Teatro Tecal</title>
-    <meta name="description" content="Tecal — Simulación de teatros e iluminación escénica. IDE web tipo WYSIWYG CAD para visualización 3D de espacios teatrales.">
+    <title>SkeneCAD</title>
+    <meta name="description" content="SkeneCAD — Simulación de teatros e iluminación escénica. IDE web tipo WYSIWYG CAD para visualización 3D de espacios teatrales.">
 
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -20,7 +20,9 @@
     <link rel="stylesheet" href="css/properties.css">
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/context-menu.css">
+    <link rel="stylesheet" href="css/message-dialog.css">
     <link rel="stylesheet" href="css/canvas.css">
+    <link rel="stylesheet" href="css/catalog.css">
     <link rel="stylesheet" href="css/watermark.css">
 
     <!-- Three.js Import Map -->
@@ -41,7 +43,7 @@
     ============================================================ -->
     <div id="tecal-loader">
         <div class="loader-brand">
-            <div class="loader-brand-title">Teatro Tecal</div>
+            <div class="loader-brand-title">SkeneCAD</div>
             <div class="loader-brand-sub">Plano Estructural 3D</div>
         </div>
 
@@ -60,14 +62,18 @@
          APP SHELL — oculto hasta que el loader termina
     ============================================================ -->
     <div id="app-shell" class="app-loading">
-        <div id="app-title">TEATRO TECAL 3D — PLANO ESTRUCTURAL</div>
+        <div id="app-title">
+            <div id="brand-title" style="display:flex; align-items:center; gap:10px;">
+                SkeneCAD
+            </div>
+        </div>
 
         <div id="top-bar">
 
             <!-- GRUPO 1: Menú + toggle 2D/3D -->
             <div class="tb-group">
-                <button id="btn-top-explorer" class="icon-btn" title="Explorador"><i class="ph ph-tree-structure"></i></button>
-                <button id="btn-top-properties" class="icon-btn" title="Propiedades"><i class="ph ph-sliders"></i></button>
+                <button id="btn-top-explorer" class="icon-btn" onclick="window._toggleExplorer()" title="Explorador"><i class="ph ph-tree-structure"></i></button>
+                <button id="btn-top-properties" class="icon-btn" onclick="window._toggleProperties()" title="Propiedades"><i class="ph ph-sliders"></i></button>
                 <div class="tb-sep"></div>
                 <button id="btn-toggle-view" class="icon-btn active" title="Alternar 2D/3D"><i class="ph ph-cube"></i></button>
             </div>
@@ -126,10 +132,24 @@
         </div>
 
         <div id="main-wrapper">
-            <div id="activity-bar">
-                <button id="btn-act-explorer" class="act-btn" title="Explorador"><i class="ph ph-tree-structure"></i></button>
-                <button id="btn-act-properties" class="act-btn" title="Propiedades"><i class="ph ph-sliders"></i></button>
-            </div>
+            <nav class="rail" id="activity-bar">
+                <button class="rail-btn active" id="nav-explorer" onclick="window._toggleExplorer()" title="Explorador de Escena">
+                    <i class="ph ph-tree-structure" style="font-size: 22px;"></i>
+                    <div class="rail-indicator"></div>
+                </button>
+                <button class="rail-btn" id="nav-properties" onclick="window._toggleProperties()" title="Propiedades">
+                    <i class="ph ph-sliders" style="font-size: 22px;"></i>
+                    <div class="rail-indicator"></div>
+                </button>
+                <button class="rail-btn" id="nav-catalogo" onclick="window._toggleCatalog()" title="Catálogo de Teatros">
+                    <i class="ph ph-bank" style="font-size: 22px;"></i>
+                    <div class="rail-indicator"></div>
+                </button>
+                <div class="rail-spacer"></div>
+                <button class="rail-btn" title="Configuración">
+                    <i class="ph ph-gear" style="font-size: 20px;"></i>
+                </button>
+            </nav>
             
             <div id="canvas-wrapper" class="tool-orbit single-active">
                 <canvas id="ruler-overlay"></canvas>
@@ -139,6 +159,17 @@
                 <div class="split-badge tr"><i class="ph ph-align-center-horizontal"></i> Frontal</div>
                 <div class="split-badge bl"><i class="ph ph-arrow-line-right"></i> Lateral</div>
                 <div class="split-badge br"><i class="ph ph-selection-all"></i> Ortogonal</div>
+                
+                <div class="mode-chip" id="mode-indicator" style="display: none;">
+                    <i class="ph ph-cube"></i> Perspectiva (3D)
+                </div>
+                
+                <div class="canvas-center" id="canvas-overlay-center" style="display: none; position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center; pointer-events:none; z-index: 10;">
+                    <i class="ph ph-cube" id="canvas-icon" style="font-size:56px; color:#666; opacity:0.55; margin-bottom:10px;"></i>
+                    <div id="canvas-text" style="color:#7a7a7a; font-size:15px; letter-spacing:.25em; text-transform:uppercase; font-weight:300;">RENDER 3D</div>
+                    <div id="canvas-subtext" style="color:#5a5a5a; font-size:10.5px; letter-spacing:.03em; margin-top:6px;"></div>
+                </div>
+
                 <div class="single-badge tl" id="single-badge"><i class="ph ph-cube"></i> <span>Perspectiva (3D)</span></div>
                 
                 <div id="gizmo-container" title="Arrastrar Gizmo"></div>
@@ -149,30 +180,109 @@
                 </div>
             </div>
 
-            <div id="sidebar">
-                <!-- SELECTOR DE CONTEXTO (2 Filas de Pestañas) -->
-                <div class="sidebar-tab-grid">
-                    <div class="sidebar-tab-row">
-                        <button onclick="window._switchCategory('arquitectura')" id="tab-arquitectura" class="tab-btn">
-                            Espacio Arquitectónico
-                        </button>
-                        <button onclick="window._switchCategory('escena')" id="tab-escena" class="tab-btn">
-                            Espacio Escénico
-                        </button>
+            <aside id="sidebar">
+                <!-- VISTA EXPLORADOR -->
+                <div class="view active" id="view-explorer" style="display:flex; flex-direction:column; height:100%;">
+                    <!-- SELECTOR DE CONTEXTO (2 Filas de Pestañas) -->
+                    <div class="sidebar-tab-grid">
+                        <div class="sidebar-tab-row">
+                            <button onclick="window._switchCategory('arquitectura')" id="tab-arquitectura" class="tab-btn">
+                                Espacio Arquitectónico
+                            </button>
+                            <button onclick="window._switchCategory('escena')" id="tab-escena" class="tab-btn">
+                                Espacio Escénico
+                            </button>
+                        </div>
+                        <div class="sidebar-tab-row">
+                            <button onclick="window._switchCategory('iluminacion')" id="tab-iluminacion" class="tab-btn">
+                                Iluminación y Medios
+                            </button>
+                            <button onclick="window._switchCategory('personas')" id="tab-personas" class="tab-btn">
+                                Personas
+                            </button>
+                        </div>
                     </div>
-                    <div class="sidebar-tab-row">
-                        <button onclick="window._switchCategory('iluminacion')" id="tab-iluminacion" class="tab-btn">
-                            Iluminación y Medios
-                        </button>
-                        <button onclick="window._switchCategory('personas')" id="tab-personas" class="tab-btn">
-                            Personas
+
+                    <!-- CONTENEDOR ESCÉNICO PANEL -->
+                    <div id="contenedor-panel">
+                        <div class="cont-header" onclick="window._toggleContenedor()">
+                            <div class="title">
+                                <i class="ph ph-bounding-box" style="color:#5b9bff; font-size:16px;"></i> Contenedor Escénico
+                            </div>
+                            <i class="ph ph-caret-down chev" id="contenedor-chevron"></i>
+                        </div>
+                        <div id="contenedor-body">
+                            <p>Este volumen se fija al iniciar el proyecto. Todo lo que diseñes se posiciona dentro de él.</p>
+                            <div class="field-grid">
+                                <div class="field"><label>Ancho boca (m)</label><input type="number" id="c-ancho" value="10" step="0.1"></div>
+                                <div class="field"><label>Profundidad (m)</label><input type="number" id="c-profundidad" value="8" step="0.1"></div>
+                                <div class="field"><label>Alto proscenio (m)</label><input type="number" id="c-alto" value="5.5" step="0.1"></div>
+                                <div class="field"><label>Altura parrilla (m)</label><input type="number" id="c-parrilla" value="9" step="0.1"></div>
+                            </div>
+                            <button class="apply-btn" id="btn-apply-container" onclick="window._applyContainer()">Aplicar cambios al contenedor</button>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor ÚNICO del Árbol de Nodos -->
+                    <div class="tree-scroll-area" id="tree-container">
+                    </div>
+                </div>
+            </aside>
+
+            <!-- PANEL DE CATÁLOGO (Independiente) -->
+            <aside id="catalogo-panel" class="side-panel">
+                <div class="view" id="view-catalogo" style="display:flex; flex-direction:column; height:100%;">
+                    
+                    <!-- TEATRO SELECTOR PANEL -->
+                    <div id="teatro-selector-panel" style="display:block;">
+                        <div class="cont-header" style="cursor:default">
+                            <div class="title">
+                                <i class="ph ph-bank" style="color:#5b9bff; font-size:16px;"></i> Teatro Activo
+                            </div>
+                        </div>
+                        <div style="padding:0 12px 12px;">
+                            <p>Define qué arquitectura real se renderiza en 3D. No afecta tu Contenedor Escénico ni tu diseño.</p>
+                            <select id="teatro-select" class="field" onchange="window._onTeatroChange(this.value)" style="width:100%;background:#1e1e1e;border:1px solid var(--border);border-radius:3px;padding:5px 6px;color:#eaeaea;font-size:12px;">
+                                <option value="ninguno">Ninguno</option>
+                            </select>
+                            <div id="sync-banner" style="display:none;margin-top:8px;background:#20222a;border:1px solid #2c5789;border-radius:4px;padding:8px;">
+                                <p style="color:#dbe9ff; margin-bottom:7px;">¿Sincronizar el <b>Contenedor Escénico</b> con las medidas de <span id="sync-theater-name"></span>?</p>
+                                <div style="display:flex;gap:6px;">
+                                    <button onclick="window._syncContainerFromActive(true)" style="flex:1;font-size:11px;background:#2c5789;border:none;border-radius:3px;padding:5px;color:#fff;cursor:pointer;">Sí</button>
+                                    <button onclick="window._syncContainerFromActive(false)" style="flex:1;font-size:11px;background:#2d2d2e;border:1px solid var(--border);border-radius:3px;padding:5px;color:#ccc;cursor:pointer;">No</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cat-head">
+                        <div class="t">Catálogo de Teatros</div>
+                        <div class="s">Verifica tu diseño contra cada recinto sin alterar tu contenedor.</div>
+                    </div>
+                    <div id="catalog-container"></div>
+                    <div class="new-theater-bar">
+                        <button class="new-theater-btn" onclick="alert('Funcionalidad para crear teatro personalizado próximamente.')">
+                            <i class="ph ph-plus" style="font-size:14px;"></i> Crear nuevo teatro
                         </button>
                     </div>
                 </div>
+            </aside>
 
-                <!-- Contenedor ÚNICO del Árbol de Nodos -->
-                <div class="tree-scroll-area" id="tree-container">
-                    <!-- Contenido inyectado por renderTree() vía JS -->
+            <!-- VERIFY DRAWER -->
+            <div id="verify-drawer">
+                <div class="vd-head">
+                    <div>
+                        <div class="eyebrow">Verificación de diseño</div>
+                        <div class="title" id="verify-theater-name">—</div>
+                    </div>
+                    <button class="vd-close" onclick="window._closeVerify()">
+                        <i class="ph ph-x" style="font-size: 18px;"></i>
+                    </button>
+                </div>
+                <div id="verify-summary"></div>
+                <div id="verify-list"></div>
+                <div class="vd-foot">
+                    <button class="vd-close-btn" onclick="window._closeVerify()">Cerrar verificación (tu contenedor no cambió)</button>
                 </div>
             </div>
 
@@ -198,7 +308,7 @@
         </div>
 
         <div id="watermark">
-            <div class="wm-title">Teatro Tecal</div>
+            <div class="wm-title">SkeneCAD</div>
             <div class="wm-author">By Leonardo Merchán</div>
             <a href="https://instagram.com/_ledirec" target="_blank" class="wm-link">@_ledirec</a>
         </div>

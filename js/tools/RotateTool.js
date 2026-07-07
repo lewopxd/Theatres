@@ -51,8 +51,8 @@ export function initRotateDrag(e) {
     dragObject = selectedMesh;
     dragAxis = hitInfo.axis;
     RotationGizmo.setActiveAxis(hitInfo.halfId);
-    initialQuaternion.copy(selectedMesh.quaternion);
-    initialPosition.copy(selectedMesh.position);
+    selectedMesh.getWorldQuaternion(initialQuaternion);
+    selectedMesh.getWorldPosition(initialPosition);
 
     if (typeof GizmoDebugWindow !== 'undefined' && GizmoDebugWindow.isGizmoRotateMode()) {
         initialGizmoQuaternion.copy(RotationGizmo.getGroup().quaternion);
@@ -191,19 +191,31 @@ export function performRotateDrag(e) {
         GizmoDebugWindow.updateAngles(new THREE.Euler().setFromQuaternion(newGizmoQuat));
     } else {
         // === NORMAL MODE: ROTATE OBJECT ===
-        const newQuat = deltaQuat.clone().multiply(initialQuaternion);
+        const newWorldQuat = deltaQuat.clone().multiply(initialQuaternion);
 
-        dragObject.quaternion.copy(newQuat);
-
-        // Orbit the position around the pivot point
+        // Orbit the position around the pivot point in world space
         const offset = new THREE.Vector3().subVectors(initialPosition, pivotPoint);
         offset.applyQuaternion(deltaQuat);
-        dragObject.position.copy(pivotPoint).add(offset);
+        const newWorldPos = pivotPoint.clone().add(offset);
+
+        // Convert world position and world quaternion to parent local space if nested
+        let finalLocalQuat = newWorldQuat.clone();
+        let finalLocalPos = newWorldPos.clone();
+
+        if (dragObject.parent && !dragObject.parent.isScene) {
+            const parentWorldQuat = new THREE.Quaternion();
+            dragObject.parent.getWorldQuaternion(parentWorldQuat);
+            finalLocalQuat = parentWorldQuat.clone().invert().multiply(newWorldQuat);
+            finalLocalPos = dragObject.parent.worldToLocal(newWorldPos.clone());
+        }
+
+        dragObject.quaternion.copy(finalLocalQuat);
+        dragObject.position.copy(finalLocalPos);
 
         const wire = Registry.findWireById(dragObject.userData.id);
         if (wire) {
-            wire.quaternion.copy(newQuat);
-            wire.position.copy(dragObject.position);
+            wire.quaternion.copy(finalLocalQuat);
+            wire.position.copy(finalLocalPos);
         }
 
         // LIGHTWEIGHT: just update transform of selection edges — no geometry rebuild
@@ -229,7 +241,7 @@ export function performRotateDrag(e) {
         if (badge) {
             const coordsSpan = badge.querySelector('.drag-coords');
             if (coordsSpan) {
-                const euler = new THREE.Euler().setFromQuaternion(newQuat, 'YXZ');
+                const euler = new THREE.Euler().setFromQuaternion(dragObject.quaternion, 'YXZ');
                 const rx = THREE.MathUtils.radToDeg(euler.x).toFixed(1);
                 const ry = THREE.MathUtils.radToDeg(euler.y).toFixed(1);
                 const rz = THREE.MathUtils.radToDeg(euler.z).toFixed(1);

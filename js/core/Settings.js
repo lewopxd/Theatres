@@ -3,15 +3,16 @@
 // ============================================================
 
 import { State } from './State.js';
+import { Storage } from './Storage.js';
 
 export const Settings = {
     config: {
         visualZUp: true // true = Y acts as Z visually for the user
     },
 
-    init() {
-        // Here we could fetch from settings.json or localStorage
-        const stored = localStorage.getItem('tecal_settings');
+    async init() {
+        // Here we fetch from Settings storage asynchronously
+        const stored = await Storage.getItem('tecal_settings');
         if (stored) {
             try {
                 this.config = { ...this.config, ...JSON.parse(stored) };
@@ -23,7 +24,7 @@ export const Settings = {
     },
 
     save() {
-        localStorage.setItem('tecal_settings', JSON.stringify(this.config));
+        Storage.setItem('tecal_settings', JSON.stringify(this.config)).catch(e => console.error("Error saving settings", e));
     },
     
     get(key) {

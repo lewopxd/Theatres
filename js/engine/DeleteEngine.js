@@ -51,7 +51,11 @@ export const DeleteEngine = {
         }
 
         // Remover de la escena
-        scene.remove(mesh);
+        if (mesh.parent) {
+            mesh.parent.remove(mesh);
+        } else {
+            scene.remove(mesh);
+        }
         
         // Limpiar motores auxiliares
         if (mesh.userData.isPersona) {
@@ -63,7 +67,11 @@ export const DeleteEngine = {
         if (wire) {
             if (wire.geometry) wire.geometry.dispose();
             if (wire.material) wire.material.dispose();
-            scene.remove(wire);
+            if (wire.parent) {
+                wire.parent.remove(wire);
+            } else {
+                scene.remove(wire);
+            }
         }
 
         // Quitar del registro central

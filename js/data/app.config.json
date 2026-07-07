@@ -1,0 +1,46 @@
+{
+    "_comment": "Configuración global de la app Theatres. No editar en producción.",
+    "app": {
+        "name": "Theatres",
+        "version": "1.0.0",
+        "storageKeyPrefix": "theatres-project",
+        "storageVersion": 3,
+        "historyMax": 30
+    },
+    "viewport": {
+        "baseBgColor": "#1e262f",
+        "frustumSize": 10,
+        "dragThreshold": 4
+    },
+    "grid": {
+        "visible": true,
+        "type": "lines",
+        "color": "#6a7b8e",
+        "size": 1,
+        "opacity": 0.3,
+        "belowFloor": false,
+        "showCenter": true,
+        "centerColor": "#007acc",
+        "centerShape": "full",
+        "centerStyle": "solid",
+        "centerOpacity": 0.5
+    },
+    "gizmo": {
+        "targetPixelSize": 180,
+        "ribbonWidth": 0.065
+    },
+    "theatre": {
+        "defaultWidth": 10,
+        "defaultDepth": 8,
+        "defaultHeight": 5.5,
+        "defaultGrid": 4.5,
+        "defaultWallThickness": 0.2,
+        "defaultBarCount": 5,
+        "defaultBarRadius": 0.05
+    },
+    "personas": {
+        "maxCount": 30,
+        "defaultHeight": 1.70,
+        "spawnHeightAbove": 6.0
+    }
+}

@@ -1,14 +1,14 @@
 [
     {
         "name": "Happy Idle",
-        "file": "happy idle.glb"
+        "file": "Happy Idle.glb"
     },
     {
         "name": "Standing Briefcase Idle",
-        "file": "standing w_briefcase idle.glb"
+        "file": "Standing W_Briefcase Idle.glb"
     },
     {
         "name": "Texting While Standing",
-        "file": "texting while standing.glb"
+        "file": "Texting While Standing.glb"
     }
 ]

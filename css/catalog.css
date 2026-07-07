@@ -1,0 +1,428 @@
+/* ============================================================
+   CATALOG CSS — Mockup styles for the Rail, Selector Panels,
+   and Verify Drawer.
+   ============================================================ */
+
+/* ---------- RAIL (Left Navigation) ---------- */
+nav.rail {
+    width: 50px;
+    flex-shrink: 0;
+    background: var(--bg-rail);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 18px;
+    z-index: 9999 !important; /* Ensure rail is above canvas and sidebar ALWAYS */
+}
+
+.rail-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    position: relative;
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.rail-btn:hover {
+    color: #e5e5e5;
+}
+
+.rail-btn.active {
+    color: var(--accent);
+}
+
+.rail-spacer {
+    flex: 1;
+}
+
+.rail-indicator {
+    position: absolute;
+    left: -16px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+    display: none;
+}
+
+.rail-btn.active .rail-indicator {
+    display: block;
+}
+
+/* ---------- ASIDE VIEWS (Explorer vs Catalog) ---------- */
+.view {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.view.active {
+    display: flex;
+}
+
+/* ---------- SELECTOR PANELS (Contenedor & Teatro) ---------- */
+#contenedor-panel,
+#teatro-selector-panel {
+    border-bottom: 1px solid var(--border);
+    background: #20222a;
+    display: none;
+}
+
+#contenedor-panel.visible,
+#teatro-selector-panel.visible {
+    display: block;
+}
+
+.cont-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    cursor: pointer;
+}
+
+.cont-header .title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #dbe9ff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+}
+
+.cont-header .chev {
+    color: var(--text-muted);
+    transition: transform .15s ease;
+}
+
+.cont-header .chev.collapsed {
+    transform: rotate(-90deg);
+}
+
+#contenedor-body {
+    padding: 0 12px 12px;
+}
+
+#contenedor-body p, 
+#teatro-selector-panel p {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin: 0 0 8px;
+}
+
+.field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.field label {
+    display: block;
+    font-size: 9.5px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-bottom: 3px;
+}
+
+.field input, .field select {
+    width: 100%;
+    background: #1e1e1e;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 4px 6px;
+    color: #eaeaea;
+    font-size: 12px;
+}
+
+.field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.apply-btn {
+    width: 100%;
+    margin-top: 9px;
+    font-size: 11px;
+    background: #2d2d2e;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 6px;
+    color: #ddd;
+    cursor: pointer;
+}
+
+.apply-btn:hover {
+    background: #3a3a3c;
+}
+
+/* ---------- CATALOG VIEW ---------- */
+.cat-head {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elev);
+}
+
+.cat-head .t {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: #ddd;
+}
+
+.cat-head .s {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    line-height: 1.4;
+}
+
+#catalog-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.theater-card {
+    border: 1px solid var(--border);
+    background: #1e1e1e;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+.theater-card:hover {
+    border-color: #4a4a4a;
+}
+
+.tc-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.tc-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #e2e2e2;
+}
+
+.tc-city {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-top: 1px;
+}
+
+.tc-dims {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 10px;
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.tc-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.btn-verify {
+    flex: 1;
+    font-size: 10.5px;
+    background: #2d2d2e;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 5px;
+    color: #ccc;
+    cursor: pointer;
+}
+
+.btn-verify:hover {
+    background: #173154;
+    border-color: #2c5789;
+}
+
+.new-theater-bar {
+    padding: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.new-theater-btn {
+    width: 100%;
+    font-size: 11px;
+    background: transparent;
+    border: 1px dashed #4a4a4a;
+    border-radius: 4px;
+    padding: 7px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.new-theater-btn:hover {
+    color: #ddd;
+    border-color: #666;
+}
+
+/* ---------- VERIFY DRAWER ---------- */
+#verify-drawer {
+    position: absolute;
+    top: 0;
+    right: -320px;
+    width: 300px;
+    height: 100%;
+    background: #202021;
+    border-left: 1px solid var(--border);
+    transition: right .22s ease;
+    z-index: 200; /* Must be above canvas controls */
+    display: flex;
+    flex-direction: column;
+}
+
+#verify-drawer.open {
+    right: 0;
+}
+
+.vd-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.vd-head .eyebrow {
+    font-size: 9.5px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.vd-head .title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #e2e2e2;
+    margin-top: 2px;
+}
+
+.vd-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 2px;
+    cursor: pointer;
+}
+
+.vd-close:hover {
+    color: #ddd;
+}
+
+#verify-summary {
+    padding: 9px 14px;
+    font-size: 11px;
+    border-bottom: 1px solid var(--border);
+    background: #1c1c1d;
+}
+
+#verify-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.vitem {
+    border-bottom: 1px solid #2f2f31;
+    padding: 8px 14px;
+}
+
+.vitem .row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.vitem .name {
+    color: #dcdcdc;
+    font-size: 11.5px;
+    font-weight: 500;
+}
+
+.vitem .detail {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    padding-left: 20px;
+    line-height: 1.4;
+}
+
+.vd-foot {
+    padding: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.vd-close-btn {
+    width: 100%;
+    font-size: 11px;
+    background: #2d2d2e;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px;
+    color: #ccc;
+    cursor: pointer;
+}
+
+.vd-close-btn:hover {
+    background: #3a3a3c;
+}
+
+/* Bind indicator in header */
+#bound-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    font-size: 12px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+#bound-indicator .accent {
+    color: #dbe9ff;
+}
+#bound-indicator .dim {
+    color: var(--text-dim);
+}
+
+/* Canvas Mode Overlays */
+.mode-chip {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(37, 37, 38, .92);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 5px 10px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11.5px;
+    color: #ccc;
+    z-index: 5;
+    pointer-events: none;
+}

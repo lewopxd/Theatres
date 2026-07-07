@@ -9,7 +9,9 @@ import { setRaycasterFromEvent, getRaycaster } from '../engine/RaycasterManager.
 import { Registry } from '../core/Registry.js';
 import { syncSelectionEdges, updateSelectionPosition } from '../engine/SelectionRenderer.js';
 import { History } from '../core/History.js';
-import { AXIS_LABELS, DEFAULT_STAGE } from '../utils/constants.js';
+import { AXIS_LABELS } from '../utils/constants.js';
+import { ProjectManager } from '../core/ProjectManager.js';
+import { THEATRES_CATALOG, DEFAULT_CONTAINER } from '../data/catalogs/theatres.catalog.js';
 import { $ } from '../utils/dom.js';
 import { getPlaneNormal } from '../utils/math.js';
 import { DragGhost } from '../engine/DragGhost.js';
@@ -84,7 +86,10 @@ export function initDrag(e) {
     const raycaster = getRaycaster();
     
     // Find the exact point where the user clicked to position the drag plane correctly in depth
-    let coplanarPoint = selectedMesh.position.clone();
+    const worldPos = new THREE.Vector3();
+    selectedMesh.getWorldPosition(worldPos);
+
+    let coplanarPoint = worldPos.clone();
     const wasVisible = selectedMesh.visible;
     selectedMesh.visible = true;
     const intersects = raycaster.intersectObject(selectedMesh, true);
@@ -107,8 +112,8 @@ export function initDrag(e) {
     State.set('isDragging', true);
     if (e.stopPropagation) e.stopPropagation();
     dragObject = selectedMesh;
-    dragStart.copy(selectedMesh.position);
-    dragOffset.copy(dragIntersect).sub(selectedMesh.position);
+    dragStart.copy(worldPos);
+    dragOffset.copy(dragIntersect).sub(worldPos);
 
     DragGhost.create(selectedMesh);
 
@@ -242,9 +247,15 @@ export function updateMeshPos(axis, val) {
  */
 function updateMeshPosVec(mesh, pos) {
     if (!mesh || mesh.userData.locked) return;
-    mesh.position.copy(pos);
+    
+    const localPos = pos.clone();
+    if (mesh.parent && !mesh.parent.isScene) {
+        mesh.parent.worldToLocal(localPos);
+    }
+    
+    mesh.position.copy(localPos);
     const wire = Registry.findWireById(mesh.userData.id);
-    if (wire) wire.position.copy(pos);
+    if (wire) wire.position.copy(localPos);
     syncSelectionEdges(mesh);
     EventBus.emit('statusbar:coords', { mesh });
     EventBus.emit('properties:refreshLive');
@@ -273,7 +284,7 @@ export function updateGeometry(paramKey, val) {
         const wire = Registry.findWireById(data.id);
         if (wire) {
             wire.geometry.dispose();
-            wire.geometry = new THREE.WireframeGeometry(newGeo);
+            wire.geometry = new THREE.EdgesGeometry(newGeo);
         }
         syncSelectionEdges(selectedMesh);
     }
@@ -302,7 +313,15 @@ function applyClamp(mesh, targetPos) {
         return;
     }
     
-    const { width, height, depth } = DEFAULT_STAGE;
+    let stage = DEFAULT_CONTAINER;
+    const activeId = ProjectManager.getActiveTheatreId();
+    if (activeId !== 'ninguno') {
+        const t = THEATRES_CATALOG.find(x => x.id === activeId);
+        if (t) {
+            stage = t.stage;
+        }
+    }
+    const { width, height, depth } = stage;
     
     // Size offsets relative to origin
     const minX = -width / 2 - bboxMin.x;

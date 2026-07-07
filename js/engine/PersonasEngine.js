@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { State } from '../core/State.js';
 import { EventBus } from '../core/EventBus.js';
+import { ProjectManager } from '../core/ProjectManager.js';
+import { DEFAULT_CONTAINER } from '../data/catalogs/theatres.catalog.js';
 
 const loader = new GLTFLoader();
 
@@ -218,7 +220,12 @@ export const PersonasEngine = {
             if (mesh.userData.spawnState === 'done' && !mesh.userData.pendingRootMotion) {
                 mesh.userData.spawnComplete = true;
                 if (!mesh.userData.hasBeenMoved) {
-                    mesh.position.y = 0;
+                    if (mesh.parent && !mesh.parent.isScene) {
+                        const h = ProjectManager.currentProject.theatre.height || DEFAULT_CONTAINER.height;
+                        mesh.position.y = -h / 2;
+                    } else {
+                        mesh.position.y = 0;
+                    }
                     mesh.updateMatrixWorld(true);
                 }
                 spawningMeshes.splice(i, 1);
@@ -653,7 +660,9 @@ export const PersonasEngine = {
         mesh.userData.fallVelocity = 0;
         
         mesh.userData.spawnState = 'preparing_fall'; // Pausamos físicas hasta que cargue la animación
-        mesh.position.y = 6.0; // Aparece a 6 metros de altura
+        if (mesh.position.y <= 0.05) {
+            mesh.position.y = 6.0; // Default fallback height
+        }
         mesh.updateMatrixWorld(true);
         
         if (State.get('selectedMesh') === mesh) {

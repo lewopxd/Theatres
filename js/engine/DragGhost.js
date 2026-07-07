@@ -24,13 +24,52 @@ export const DragGhost = {
 
         ghostGroup = new THREE.Group();
         ghostGroup.name = '__dragGhostGroup__';
-        ghostGroup.position.copy(mesh.position);
-        ghostGroup.rotation.copy(mesh.rotation);
-        ghostGroup.scale.copy(mesh.scale);
+        mesh.getWorldPosition(ghostGroup.position);
+        mesh.getWorldQuaternion(ghostGroup.quaternion);
+        mesh.getWorldScale(ghostGroup.scale);
         ghostGroup.renderOrder = 50;
 
         // Clone solid mesh if it has geometry
-        if (mesh.geometry) {
+        if (mesh.userData.id === 'contenedor-escenico') {
+            const ghostSolid = new THREE.Group();
+            ghostSolid.userData = { ...mesh.userData };
+            ghostSolid.position.set(0, 0, 0);
+            ghostSolid.rotation.set(0, 0, 0);
+            ghostSolid.scale.set(1, 1, 1);
+
+            mesh.children.forEach(child => {
+                let clonedChild;
+                if (child.userData && child.userData.isPersona) {
+                    const mixer = child.userData.mixer;
+                    const bones = child.userData.bones;
+                    child.userData.mixer = null;
+                    child.userData.bones = null;
+                    try {
+                        clonedChild = SkeletonUtils.clone(child);
+                    } finally {
+                        child.userData.mixer = mixer;
+                        child.userData.bones = bones;
+                    }
+                } else {
+                    clonedChild = child.clone();
+                }
+                clonedChild.position.copy(child.position);
+                clonedChild.rotation.copy(child.rotation);
+                clonedChild.scale.copy(child.scale);
+                ghostSolid.add(clonedChild);
+            });
+
+            ghostSolid.traverse(child => {
+                if (child.material) {
+                    child.material = child.material.clone();
+                    child.material.transparent = true;
+                    child.material.opacity = 0.35; // slightly transparent as requested
+                    child.material.depthWrite = false;
+                }
+                child.raycast = () => {};
+            });
+            ghostGroup.add(ghostSolid);
+        } else if (mesh.geometry) {
             const geo = mesh.geometry.clone();
             let mat;
             if (mesh.material) {

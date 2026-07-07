@@ -25,19 +25,26 @@ export function initSidebar() {
     const toggleExplorer = function () {
         const willOpen = !sidebarEl.classList.contains('open');
         sidebarEl.classList.toggle('open');
-        $('btn-top-explorer').classList.toggle('active', willOpen);
-        $('btn-act-explorer').classList.toggle('active', willOpen);
+        
+        const topBtn = $('btn-top-explorer');
+        if (topBtn) topBtn.classList.toggle('active', willOpen);
+        
+        const railBtn = $('nav-explorer');
+        if (railBtn) railBtn.classList.toggle('active', willOpen);
+        
         if (willOpen) EventBus.emit('ui:closeOthers', 'sidebar');
     };
     
-    $('btn-top-explorer').addEventListener('click', toggleExplorer);
-    $('btn-act-explorer').addEventListener('click', toggleExplorer);
+    // Exponer para el HTML
+    window._toggleExplorer = toggleExplorer;
 
     EventBus.on('ui:closeOthers', (source) => {
         if (source !== 'sidebar') {
             sidebarEl.classList.remove('open');
-            $('btn-top-explorer').classList.remove('active');
-            $('btn-act-explorer').classList.remove('active');
+            const topBtn = $('btn-top-explorer');
+            const railBtn = $('nav-explorer');
+            if (topBtn) topBtn.classList.remove('active');
+            if (railBtn) railBtn.classList.remove('active');
         }
     });
 

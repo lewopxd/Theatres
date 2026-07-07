@@ -36,17 +36,7 @@ export const FRUSTUM_SIZE = 10;
 export const HISTORY_MAX = 30;
 
 /** localStorage key para persistencia */
-export const STORAGE_KEY = 'tecal-save-v2';
+export const STORAGE_KEY = 'tecal-save-v3';
 
 /** Background base color */
 export const BASE_BG_COLOR = 0x1e262f;
-
-/** Theatre defaults */
-export const DEFAULT_STAGE = {
-    width: 8,
-    depth: 7.5,
-    height: 4.5,
-    wallThickness: 0.2,
-    barCount: 5,
-    barRadius: 0.05,
-};

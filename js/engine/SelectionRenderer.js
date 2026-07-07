@@ -10,7 +10,10 @@ import { EventBus } from '../core/EventBus.js';
 import { MoveHandle } from './MoveHandle.js';
 import { RotationGizmo } from './RotationGizmo.js';
 import { PersonasEngine } from './PersonasEngine.js';
+import { cam3D, camOrthoMain } from './CameraManager.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { ProjectManager } from '../core/ProjectManager.js';
+import { DEFAULT_CONTAINER } from '../data/catalogs/theatres.catalog.js';
 
 // Create selection edges mesh
 const selectionGroup = new THREE.Group();
@@ -54,6 +57,20 @@ const selectionPersonaWire = new THREE.Group();
 selectionPersonaWire.visible = false;
 selectionGroup.add(selectionPersonaWire);
 
+const selectionContainerSolidTriangles = new THREE.Mesh(
+    new THREE.BufferGeometry(),
+    new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: false,
+        transparent: true,
+        opacity: 1.0
+    })
+);
+selectionContainerSolidTriangles.visible = false;
+selectionGroup.add(selectionContainerSolidTriangles);
+
 
 
 // Create 8 corner dots + 12 midpoint dots for the 2D bounding box
@@ -86,9 +103,14 @@ export function updateLoop() {
     // Prevent flickering: don't sync if dragging (ghost is active)
     if (DragGhost.isActive) return;
 
-    if (currentSelectedMesh && currentSelectedMesh.userData.isPersona) {
-        const now = Date.now();
-        if (now - lastSyncTime > 100) { // 10 FPS for bounding box updates
+    if (currentSelectedMesh) {
+        if (currentSelectedMesh.userData.isPersona) {
+            const now = Date.now();
+            if (now - lastSyncTime > 100) { // 10 FPS for bounding box updates
+                syncSelectionEdges(currentSelectedMesh);
+            }
+        } else if (currentSelectedMesh.userData.id === 'contenedor-escenico') {
+            // Re-render selection edges every frame to hide perpendicular lines dynamically
             syncSelectionEdges(currentSelectedMesh);
         }
     }
@@ -105,6 +127,18 @@ export function syncSelectionEdges(mesh) {
         selectionEdges.visible = false;
         selectionEdgesHidden.visible = false;
         selectionPersonaWire.visible = false;
+        selectionContainerSolidTriangles.visible = false;
+        cornerDots.forEach(d => d.visible = false);
+        MoveHandle.hide();
+        RotationGizmo.hide();
+        return;
+    }
+
+    if (mesh.userData.isPersona && mesh.userData.spawnState && mesh.userData.spawnState !== 'done') {
+        selectionEdges.visible = false;
+        selectionEdgesHidden.visible = false;
+        selectionPersonaWire.visible = false;
+        selectionContainerSolidTriangles.visible = false;
         cornerDots.forEach(d => d.visible = false);
         MoveHandle.hide();
         RotationGizmo.hide();
@@ -114,6 +148,7 @@ export function syncSelectionEdges(mesh) {
     selectionEdges.visible = true;
     selectionEdgesHidden.visible = false;
     selectionPersonaWire.visible = false;
+    selectionContainerSolidTriangles.visible = false;
     selectionEdges.geometry.dispose();
 
     const is3DMode = State.get('is3DMode');
@@ -206,8 +241,24 @@ export function syncSelectionEdges(mesh) {
                     `SkinnedMesh clonados: ${__skinnedMeshCount} | Mesh normales: ${__regularMeshCount}`
                 );
             }
+        } else if (mesh.userData.id === 'contenedor-escenico') {
+            const w = ProjectManager.currentProject.theatre.width || DEFAULT_CONTAINER.width;
+            const h = ProjectManager.currentProject.theatre.height || DEFAULT_CONTAINER.height;
+            const d = ProjectManager.currentProject.theatre.depth || DEFAULT_CONTAINER.depth;
+            
+            const cam = State.get('is3DMode') ? cam3D : camOrthoMain;
+            const camDir = new THREE.Vector3();
+            if (cam) cam.getWorldDirection(camDir);
+            
+            selectionEdges.geometry = createContainerSelectionGeometry(w, h, d, camDir);
+            
+            selectionContainerSolidTriangles.geometry.dispose();
+            selectionContainerSolidTriangles.geometry = createContainerSolidTrianglesGeometry(w, h, d);
+            selectionContainerSolidTriangles.visible = true;
+            selectionEdgesHidden.geometry = selectionEdges.geometry;
         } else if (mesh.geometry) {
-            selectionEdges.geometry = (mesh.userData.geoType === 'box') ? new THREE.WireframeGeometry(mesh.geometry) : new THREE.EdgesGeometry(mesh.geometry);
+            selectionContainerSolidTriangles.visible = false;
+            selectionEdges.geometry = new THREE.EdgesGeometry(mesh.geometry);
             selectionEdgesHidden.geometry = selectionEdges.geometry;
         } else {
             const box = new THREE.Box3().setFromObject(mesh);
@@ -331,12 +382,12 @@ export function syncSelectionEdges(mesh) {
     }
 
     // Position the group at the mesh's world transform
-    selectionGroup.position.copy(mesh.position);
-    selectionGroup.rotation.copy(mesh.rotation);
+    mesh.getWorldPosition(selectionGroup.position);
+    mesh.getWorldQuaternion(selectionGroup.quaternion);
     if (mesh.userData.isPersona) {
         selectionGroup.scale.set(1, 1, 1);
     } else {
-        selectionGroup.scale.copy(mesh.scale);
+        mesh.getWorldScale(selectionGroup.scale);
     }
 
     // Keep move handle synced
@@ -364,12 +415,12 @@ export function syncSelectionEdges(mesh) {
  */
 export function syncSelectionTransformOnly(mesh) {
     if (!mesh) return;
-    selectionGroup.position.copy(mesh.position);
-    selectionGroup.rotation.copy(mesh.rotation);
+    mesh.getWorldPosition(selectionGroup.position);
+    mesh.getWorldQuaternion(selectionGroup.quaternion);
     if (mesh.userData.isPersona) {
         selectionGroup.scale.set(1, 1, 1);
     } else {
-        selectionGroup.scale.copy(mesh.scale);
+        mesh.getWorldScale(selectionGroup.scale);
     }
 }
 
@@ -389,4 +440,209 @@ export function updateSelectionPosition(pos, mesh = null) {
         selectionEdges.visible = false;
         selectionEdgesHidden.visible = false;
     }
+}
+
+/**
+ * Creates custom selection geometry for the scenic container.
+ * Includes the 12 box edges, a floor center crosshair, floor square corners, and 8 joint corner brackets.
+ */
+function createContainerSelectionGeometry(width, height, depth, camDir = null) {
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const halfD = depth / 2;
+
+    const vertices = [];
+
+    // 1. Add 12 box edges
+    const edges = [
+        // Bottom ring
+        [new THREE.Vector3(-halfW, -halfH, halfD), new THREE.Vector3(halfW, -halfH, halfD)],
+        [new THREE.Vector3(halfW, -halfH, halfD), new THREE.Vector3(halfW, -halfH, -halfD)],
+        [new THREE.Vector3(halfW, -halfH, -halfD), new THREE.Vector3(-halfW, -halfH, -halfD)],
+        [new THREE.Vector3(-halfW, -halfH, -halfD), new THREE.Vector3(-halfW, -halfH, halfD)],
+        // Top ring
+        [new THREE.Vector3(-halfW, halfH, halfD), new THREE.Vector3(halfW, halfH, halfD)],
+        [new THREE.Vector3(halfW, halfH, halfD), new THREE.Vector3(halfW, halfH, -halfD)],
+        [new THREE.Vector3(halfW, halfH, -halfD), new THREE.Vector3(-halfW, halfH, -halfD)],
+        [new THREE.Vector3(-halfW, halfH, -halfD), new THREE.Vector3(-halfW, halfH, halfD)],
+        // Vertical pillars
+        [new THREE.Vector3(-halfW, -halfH, halfD), new THREE.Vector3(-halfW, halfH, halfD)],
+        [new THREE.Vector3(halfW, -halfH, halfD), new THREE.Vector3(halfW, halfH, halfD)],
+        [new THREE.Vector3(halfW, -halfH, -halfD), new THREE.Vector3(halfW, halfH, -halfD)],
+        [new THREE.Vector3(-halfW, -halfH, -halfD), new THREE.Vector3(-halfW, halfH, -halfD)]
+    ];
+
+    edges.forEach(([P1, P2]) => {
+        vertices.push(P1.x, P1.y, P1.z);
+        vertices.push(P2.x, P2.y, P2.z);
+    });
+
+    // 2. Add crosshair on the floor (centered at X=0, Z=0 on the bottom face)
+    const crossSize = 0.5; // 50 cm total crosshair size
+    const halfCross = crossSize / 2;
+    const floorY = -halfH;
+
+    // X-axis segment
+    vertices.push(-halfCross, floorY, 0);
+    vertices.push(halfCross, floorY, 0);
+    // Z-axis segment
+    vertices.push(0, floorY, -halfCross);
+    vertices.push(0, floorY, halfCross);
+
+    // 2b. Add tiny corners of a square surrounding the floor crosshair
+    const squareSize = 0.7; // 70 cm square (larger than crosshair)
+    const halfS = squareSize / 2;
+    const lBracketLen = 0.05; // 5 cm length for the L-bracket arms
+
+    const cornerSigns = [-1, 1];
+    cornerSigns.forEach(sx => {
+        cornerSigns.forEach(sz => {
+            const cx = sx * halfS;
+            const cz = sz * halfS;
+
+            // Arm along X (pointing inwards to the center)
+            vertices.push(cx, floorY, cz);
+            vertices.push(cx - sx * lBracketLen, floorY, cz);
+
+            // Arm along Z (pointing inwards to the center)
+            vertices.push(cx, floorY, cz);
+            vertices.push(cx, floorY, cz - sz * lBracketLen);
+        });
+    });
+
+    // 3. Add corner brackets (for all 8 vertices)
+    const gap = 0.12; // 12 cm gap from vertex (more separated)
+    const bracketLen = 0.25; // 25 cm bracket length (larger)
+
+    // Determine which axis is pointing most directly at/away from the camera (perpendicular to screen)
+    let hideAxis = 'z';
+    if (camDir) {
+        const absX = Math.abs(camDir.x);
+        const absY = Math.abs(camDir.y);
+        const absZ = Math.abs(camDir.z);
+        if (absX >= absY && absX >= absZ) {
+            hideAxis = 'x';
+        } else if (absY >= absX && absY >= absZ) {
+            hideAxis = 'y';
+        } else {
+            hideAxis = 'z';
+        }
+    }
+
+    const sxList = [-1, 1];
+    const syList = [-1, 1];
+    const szList = [-1, 1];
+
+    sxList.forEach(sx => {
+        syList.forEach(sy => {
+            szList.forEach(sz => {
+                const vx = sx * halfW;
+                const vy = sy * halfH;
+                const vz = sz * halfD;
+
+                // Edge directions pointing inwards from this corner
+                const dx = -sx;
+                const dy = -sy;
+                const dz = -sz;
+
+                // The bracket vertex (where the three segments meet) is offset OUTWARDS from the main corner vertex
+                const bx = vx + sx * gap;
+                const by = vy + sy * gap;
+                const bz = vz + sz * gap;
+
+                // X bracket segment
+                if (hideAxis !== 'x') {
+                    vertices.push(bx, by, bz);
+                    vertices.push(bx + dx * bracketLen, by, bz);
+                }
+
+                // Y bracket segment
+                if (hideAxis !== 'y') {
+                    vertices.push(bx, by, bz);
+                    vertices.push(bx, by + dy * bracketLen, bz);
+                }
+
+                // Z bracket segment
+                if (hideAxis !== 'z') {
+                    vertices.push(bx, by, bz);
+                    vertices.push(bx, by, bz + dz * bracketLen);
+                }
+
+                // Add corner triangles on the 3 faces meeting at this vertex
+                const triSize = 0.08; // 8 cm triangle size
+                const pX = { x: vx + dx * triSize, y: vy, z: vz };
+                const pY = { x: vx, y: vy + dy * triSize, z: vz };
+                const pZ = { x: vx, y: vy, z: vz + dz * triSize };
+
+                // Shared axis lines
+                vertices.push(vx, vy, vz); vertices.push(pX.x, pX.y, pX.z);
+                vertices.push(vx, vy, vz); vertices.push(pY.x, pY.y, pY.z);
+                vertices.push(vx, vy, vz); vertices.push(pZ.x, pZ.y, pZ.z);
+
+                // Hypotenuse lines forming the triangles on the faces
+                vertices.push(pX.x, pX.y, pX.z); vertices.push(pY.x, pY.y, pY.z); // X-Y plane
+                vertices.push(pY.x, pY.y, pY.z); vertices.push(pZ.x, pZ.y, pZ.z); // Y-Z plane
+                vertices.push(pX.x, pX.y, pX.z); vertices.push(pZ.x, pZ.y, pZ.z); // X-Z plane
+            });
+        });
+    });
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    return geometry;
+}
+
+/**
+ * Creates custom solid triangle geometry for the scenic container's corners.
+ * Returns a BufferGeometry with solid triangles on the 3 faces meeting at each of the 8 vertices.
+ */
+function createContainerSolidTrianglesGeometry(width, height, depth) {
+    const halfW = width / 2;
+    const halfH = height / 2;
+    const halfD = depth / 2;
+
+    const vertices = [];
+    const triSize = 0.08; // 8 cm triangle size
+
+    const sxList = [-1, 1];
+    const syList = [-1, 1];
+    const szList = [-1, 1];
+
+    sxList.forEach(sx => {
+        syList.forEach(sy => {
+            szList.forEach(sz => {
+                const vx = sx * halfW;
+                const vy = sy * halfH;
+                const vz = sz * halfD;
+
+                const dx = -sx;
+                const dy = -sy;
+                const dz = -sz;
+
+                const pX = { x: vx + dx * triSize, y: vy, z: vz };
+                const pY = { x: vx, y: vy + dy * triSize, z: vz };
+                const pZ = { x: vx, y: vy, z: vz + dz * triSize };
+
+                // Triangle 1 (X-Y face)
+                vertices.push(vx, vy, vz);
+                vertices.push(pX.x, pX.y, pX.z);
+                vertices.push(pY.x, pY.y, pY.z);
+
+                // Triangle 2 (Y-Z face)
+                vertices.push(vx, vy, vz);
+                vertices.push(pY.x, pY.y, pY.z);
+                vertices.push(pZ.x, pZ.y, pZ.z);
+
+                // Triangle 3 (X-Z face)
+                vertices.push(vx, vy, vz);
+                vertices.push(pX.x, pX.y, pX.z);
+                vertices.push(pZ.x, pZ.y, pZ.z);
+            });
+        });
+    });
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.computeVertexNormals();
+    return geometry;
 }
